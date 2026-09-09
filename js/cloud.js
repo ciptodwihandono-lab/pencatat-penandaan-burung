@@ -15,10 +15,16 @@ let dbInstance = null;
 let sdk = null; // { auth: {...fns}, firestore: {...fns} }
 let initPromise = null;
 
+const LOAD_TIMEOUT_MS = 10000;
+
+function timeout(ms, message) {
+  return new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
+}
+
 function loadSdk() {
   if (!isFirebaseConfigured()) return Promise.resolve(null);
   if (initPromise) return initPromise;
-  initPromise = (async () => {
+  const attempt = (async () => {
     const [{ initializeApp }, authMod, storeMod] = await Promise.all([
       import(`${CDN}/firebase-app.js`),
       import(`${CDN}/firebase-auth.js`),
@@ -45,6 +51,16 @@ function loadSdk() {
     sdk = { auth: authMod, store: storeMod };
     return sdk;
   })();
+
+  // Kalau gagal atau kelamaan (mis. jaringan lambat/putus saat memuat SDK),
+  // JANGAN simpan promise yang gagal itu -- reset supaya panggilan berikutnya
+  // (retry) mencoba lagi dari awal, bukan macet permanen.
+  initPromise = Promise.race([attempt, timeout(LOAD_TIMEOUT_MS, "Waktu tunggu habis saat memuat layanan cloud. Periksa koneksi internet Anda.")]).catch(
+    (err) => {
+      initPromise = null;
+      throw err;
+    }
+  );
   return initPromise;
 }
 

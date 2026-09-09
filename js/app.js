@@ -523,9 +523,20 @@ function showGate() {
   document.getElementById("app-header").hidden = true;
   document.getElementById("app").hidden = true;
   document.getElementById("gate-checking").hidden = true;
+  document.getElementById("gate-error").hidden = true;
   document.getElementById("gate-login-form").hidden = false;
   document.getElementById("gate-login-form").reset();
   document.getElementById("gate-status").textContent = "";
+}
+
+function showGateError(message) {
+  document.getElementById("auth-gate").hidden = false;
+  document.getElementById("app-header").hidden = true;
+  document.getElementById("app").hidden = true;
+  document.getElementById("gate-checking").hidden = true;
+  document.getElementById("gate-login-form").hidden = true;
+  document.getElementById("gate-error").hidden = false;
+  document.getElementById("gate-error-message").textContent = message;
 }
 
 document.getElementById("gate-login-form").addEventListener("submit", async (e) => {
@@ -608,21 +619,35 @@ document.getElementById("akun-logout-btn").addEventListener("click", async () =>
 
 document.getElementById("akun-sync-btn").addEventListener("click", () => syncAll(false));
 
-cloud.onAuthChange(async (user) => {
-  await renderAkunUi();
-  if (!cloud.isEnabled()) {
-    // Fitur cloud belum dikonfigurasi -- jangan kunci pengguna, langsung
-    // masuk ke aplikasi seperti mode offline-lokal biasa.
-    showApp();
-    return;
-  }
-  if (user) {
-    showApp();
-    syncAll(true);
-  } else {
-    showGate();
-  }
-});
+function initAuthWatch() {
+  document.getElementById("gate-checking").hidden = false;
+  document.getElementById("gate-error").hidden = true;
+  document.getElementById("gate-login-form").hidden = true;
+
+  cloud
+    .onAuthChange(async (user) => {
+      await renderAkunUi();
+      if (!cloud.isEnabled()) {
+        // Fitur cloud belum dikonfigurasi -- jangan kunci pengguna, langsung
+        // masuk ke aplikasi seperti mode offline-lokal biasa.
+        showApp();
+        return;
+      }
+      if (user) {
+        showApp();
+        syncAll(true);
+      } else {
+        showGate();
+      }
+    })
+    .catch((err) => {
+      showGateError("Gagal memuat layanan login: " + err.message);
+    });
+}
+
+document.getElementById("gate-retry-btn").addEventListener("click", initAuthWatch);
+
+initAuthWatch();
 
 // ---------- Online/offline indicator ----------
 function updateOnlineStatus() {
