@@ -106,6 +106,14 @@ function setView(view) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+document.getElementById("brand-home-btn").addEventListener("click", () => setView("list"));
+document.getElementById("brand-home-btn").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    setView("list");
+  }
+});
+
 document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (btn.dataset.view === "form") openForm(null);
