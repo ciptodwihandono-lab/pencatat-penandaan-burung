@@ -1,7 +1,7 @@
 import { FIELDS, SECTIONS, LOGNET_FIELDS, LOGNET_CSV_COLUMNS } from "./fields.js";
 import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAdd, clearAll, getUnsyncedRecords, findByCloudId } from "./db.js";
 import { addLognet, updateLognet, deleteLognet, getLognet, getAllLognet, clearAllLognet, bulkAddLognet } from "./db.js";
-import { downloadCsv, csvToRecords, downloadKml, downloadGpx } from "./export.js";
+import { downloadCsv, csvToRecords, downloadKml, downloadGpx, downloadLognetKml, downloadLognetGpx } from "./export.js";
 import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
 import { barChartHorizontal, lineChartTrend, barChartCategorical, topCounts, monthlyTrend } from "./charts.js";
@@ -504,7 +504,9 @@ document.getElementById("lognet-add-btn").addEventListener("click", () => openLo
 function buildLognetForm() {
   const form = document.getElementById("lognet-form");
   const fields = LOGNET_FIELDS.map(fieldHtml).join("");
-  const gpsExtra = `<div class="field"><label>&nbsp;</label><button type="button" id="lognet-gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>`;
+  const gpsExtra = `<div class="field"><label>&nbsp;</label><button type="button" id="lognet-gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
+    <div class="field full"><label>Koordinat UTM (otomatis, untuk UTM Geo Map)</label><div id="lognet-utm-preview" class="utm-preview">Isi latitude/longitude untuk melihat koordinat UTM.</div></div>
+    <div class="field full"><a id="lognet-gmaps-link" class="btn" href="#" target="_blank" rel="noopener" hidden>🗺️ Buka di Google Maps</a></div>`;
   form.innerHTML =
     `<div class="form-section"><div class="form-grid">${fields}${gpsExtra}</div></div>` +
     `<div class="form-actions">
@@ -516,9 +518,26 @@ function buildLognetForm() {
     setView("lognet");
   });
   document.getElementById("lognet-gps-btn").addEventListener("click", fetchLognetGps);
+  document.getElementById("f_net_latitude").addEventListener("input", updateLognetUtmPreview);
+  document.getElementById("f_net_longitude").addEventListener("input", updateLognetUtmPreview);
   // onsubmit/oninput, bukan addEventListener -- lihat catatan yang sama di buildForm().
   form.onsubmit = handleLognetFormSubmit;
   form.oninput = () => scheduleDraftSave("lognet", state.lognetEditingId, LOGNET_FIELDS);
+}
+
+function updateLognetUtmPreview() {
+  const lat = document.getElementById("f_net_latitude").value;
+  const lon = document.getElementById("f_net_longitude").value;
+  const preview = document.getElementById("lognet-utm-preview");
+  const utm = latLonToUtm(lat, lon);
+  preview.textContent = utm ? formatUtm(utm) : "Isi latitude/longitude untuk melihat koordinat UTM.";
+  const link = document.getElementById("lognet-gmaps-link");
+  if (utm) {
+    link.href = `https://www.google.com/maps?q=${lat},${lon}`;
+    link.hidden = false;
+  } else {
+    link.hidden = true;
+  }
 }
 
 function fetchLognetGps() {
@@ -531,6 +550,7 @@ function fetchLognetGps() {
     (pos) => {
       document.getElementById("f_net_latitude").value = pos.coords.latitude.toFixed(6);
       document.getElementById("f_net_longitude").value = pos.coords.longitude.toFixed(6);
+      updateLognetUtmPreview();
       showToast("Lokasi GPS berhasil diambil.");
     },
     (err) => showToast("Gagal mengambil GPS: " + err.message),
@@ -550,12 +570,14 @@ function openLognetForm(id) {
         if (el && rec[f.key] !== undefined) el.value = rec[f.key];
       });
       applyDraftIfAny("lognet", id, LOGNET_FIELDS);
+      updateLognetUtmPreview();
     });
   } else {
     const today = new Date();
     document.getElementById("f_net_tanggal").value = today.toISOString().slice(0, 10);
     document.getElementById("f_net_waktu").value = today.toTimeString().slice(0, 5);
     applyDraftIfAny("lognet", id, LOGNET_FIELDS);
+    updateLognetUtmPreview();
   }
   setView("lognet-form");
 }
@@ -574,6 +596,12 @@ async function handleLognetFormSubmit(e) {
     showToast("Lengkapi dulu: " + missing.join(", "));
     return;
   }
+  const utm = latLonToUtm(record.net_latitude, record.net_longitude);
+  record.utm_zone = utm ? utm.zone : "";
+  record.utm_hemisphere = utm ? utm.hemisphere : "";
+  record.utm_easting = utm ? utm.easting : "";
+  record.utm_northing = utm ? utm.northing : "";
+
   const now = new Date().toISOString();
   record.updated_at = now;
 
@@ -603,11 +631,21 @@ async function openLognetDetail(id) {
   const rec = await getLognet(id);
   if (!rec) return;
   const container = document.getElementById("lognet-detail-container");
+  const utmLine =
+    rec.utm_zone !== undefined && rec.utm_zone !== ""
+      ? `<div class="detail-item"><dt>Koordinat UTM</dt><dd>${escapeHtml(formatUtm({ zone: rec.utm_zone, hemisphere: rec.utm_hemisphere, easting: rec.utm_easting, northing: rec.utm_northing }))}</dd></div>`
+      : "";
+  const gmapsLine =
+    rec.net_latitude !== undefined && rec.net_latitude !== "" && rec.net_longitude !== undefined && rec.net_longitude !== ""
+      ? `<div class="detail-item"><dt>Google Maps</dt><dd><a href="https://www.google.com/maps?q=${rec.net_latitude},${rec.net_longitude}" target="_blank" rel="noopener">🗺️ Buka di Google Maps</a></dd></div>`
+      : "";
   container.innerHTML =
     `<h2>${escapeHtml(rec.net_kode || "(kode net belum diisi)")}</h2><dl class="detail-grid">` +
     LOGNET_FIELDS.filter((f) => rec[f.key] !== undefined && rec[f.key] !== "")
       .map((f) => `<div class="detail-item"><dt>${escapeHtml(f.label)}</dt><dd>${escapeHtml(rec[f.key])}</dd></div>`)
       .join("") +
+    utmLine +
+    gmapsLine +
     `</dl>`;
   setView("lognet-detail");
 }
@@ -627,6 +665,18 @@ document.getElementById("lognet-export-btn").addEventListener("click", async () 
   if (recs.length === 0) return showToast("Belum ada data log banding untuk diekspor.");
   downloadCsv(recs, `log-banding-${new Date().toISOString().slice(0, 10)}.csv`, LOGNET_CSV_COLUMNS);
   showToast(`Mengekspor ${recs.length} log ke CSV.`);
+});
+
+document.getElementById("lognet-export-kml-btn").addEventListener("click", async () => {
+  const recs = await getAllLognet();
+  const n = downloadLognetKml(recs);
+  showToast(n > 0 ? `Mengekspor ${n} titik ke KML (Google Earth).` : "Belum ada log dengan koordinat GPS.");
+});
+
+document.getElementById("lognet-export-gpx-btn").addEventListener("click", async () => {
+  const recs = await getAllLognet();
+  const n = downloadLognetGpx(recs);
+  showToast(n > 0 ? `Mengekspor ${n} titik ke GPX (UTM Geo Map).` : "Belum ada log dengan koordinat GPS.");
 });
 
 document.getElementById("lognet-import-btn").addEventListener("click", async () => {

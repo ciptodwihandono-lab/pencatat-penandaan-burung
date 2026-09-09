@@ -235,6 +235,7 @@ body {
   font-weight: 600;
 }
 .btn:hover { border-color: var(--ink-600); }
+a.btn { display: inline-block; text-decoration: none; }
 .btn-primary { background: var(--ink-600); color: #fff; border-color: var(--ink-600); }
 .btn-primary:hover { background: var(--ink-700); }
 .btn-danger { background: #fff; color: var(--red-600); border-color: var(--red-600); }

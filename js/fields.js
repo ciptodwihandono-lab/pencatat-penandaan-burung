@@ -128,4 +128,13 @@ export const LOGNET_FIELDS = [
   { key: "net_catatan", label: "Catatan", type: "textarea" },
 ];
 
-export const LOGNET_CSV_COLUMNS = ["id", ...LOGNET_FIELDS.map((f) => f.key), "created_at", "updated_at"];
+export const LOGNET_CSV_COLUMNS = [
+  "id",
+  ...LOGNET_FIELDS.map((f) => f.key),
+  "utm_zone",
+  "utm_hemisphere",
+  "utm_easting",
+  "utm_northing",
+  "created_at",
+  "updated_at",
+];

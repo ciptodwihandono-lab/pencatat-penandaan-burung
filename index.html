@@ -165,6 +165,11 @@
       <h3>Ekspor / Impor Log Banding (Mist Net)</h3>
       <p>Data Log Banding tersimpan terpisah dari data tally sheet di atas — ekspor/impor CSV-nya juga terpisah.</p>
       <button id="lognet-export-btn" class="btn btn-primary">Ekspor Log Banding ke CSV</button>
+      <p class="hint" style="margin-top:10px">Titik GPS pada Log Banding juga bisa diekspor ke peta:</p>
+      <div class="form-actions">
+        <button id="lognet-export-kml-btn" class="btn">Ekspor ke Google Earth (KML)</button>
+        <button id="lognet-export-gpx-btn" class="btn">Ekspor ke GPX (UTM Geo Map)</button>
+      </div>
       <div class="form-actions" style="margin-top:10px">
         <input type="file" id="lognet-import-file" accept=".csv" />
         <button id="lognet-import-btn" class="btn">Impor Log Banding dari CSV</button>

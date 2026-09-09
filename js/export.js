@@ -73,6 +73,60 @@ export function downloadGpx(records, filename) {
   return withGps.length;
 }
 
+// ---------- Log Mist Net (Log Banding) — Google Earth (KML) & GPX ----------
+export function lognetRecordsToKml(records) {
+  const withGps = records.filter((r) => r.net_latitude !== "" && r.net_longitude !== "" && r.net_latitude !== undefined && r.net_longitude !== undefined);
+  const placemarks = withGps
+    .map((r) => {
+      const name = r.net_kode || r.net_nama_burung || "Log Mist Net";
+      const desc = [
+        `Kode Net: ${escapeXml(r.net_kode || "-")}`,
+        `Lokasi: ${escapeXml(r.net_lokasi || "-")}`,
+        `Tanggal: ${escapeXml(r.net_tanggal || "-")} ${escapeXml(r.net_waktu || "")}`,
+        `Nama Burung: ${escapeXml(r.net_nama_burung || "-")}`,
+        `Catatan: ${escapeXml(r.net_catatan || "-")}`,
+      ].join("<br/>");
+      return `<Placemark><name>${escapeXml(name)}</name><description><![CDATA[${desc}]]></description><Point><coordinates>${r.net_longitude},${r.net_latitude},0</coordinates></Point></Placemark>`;
+    })
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+<name>Log Mist Net</name>
+${placemarks}
+</Document></kml>`;
+}
+
+export function downloadLognetKml(records, filename) {
+  const withGps = records.filter((r) => r.net_latitude !== "" && r.net_longitude !== "" && r.net_latitude !== undefined && r.net_longitude !== undefined);
+  triggerDownload(lognetRecordsToKml(records), filename || `log-banding-${new Date().toISOString().slice(0, 10)}.kml`, "application/vnd.google-earth.kml+xml");
+  return withGps.length;
+}
+
+export function lognetRecordsToGpx(records) {
+  const withGps = records.filter((r) => r.net_latitude !== "" && r.net_longitude !== "" && r.net_latitude !== undefined && r.net_longitude !== undefined);
+  const wpts = withGps
+    .map((r) => {
+      let timeTag = "";
+      if (r.net_tanggal) {
+        const iso = new Date(`${r.net_tanggal}T${r.net_waktu || "00:00"}:00`);
+        if (!Number.isNaN(iso.getTime())) timeTag = `<time>${iso.toISOString()}</time>`;
+      }
+      const cmt = `Kode Net: ${r.net_kode || "-"} | Lokasi: ${r.net_lokasi || "-"} | Burung: ${r.net_nama_burung || "-"}`;
+      return `<wpt lat="${r.net_latitude}" lon="${r.net_longitude}"><name>${escapeXml(r.net_kode || "")}</name><cmt>${escapeXml(cmt)}</cmt><desc>${escapeXml(r.net_catatan || "")}</desc>${timeTag}</wpt>`;
+    })
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Tally Sheet Penandaan Burung" xmlns="http://www.topografix.com/GPX/1/1">
+${wpts}
+</gpx>`;
+}
+
+export function downloadLognetGpx(records, filename) {
+  const withGps = records.filter((r) => r.net_latitude !== "" && r.net_longitude !== "" && r.net_latitude !== undefined && r.net_longitude !== undefined);
+  triggerDownload(lognetRecordsToGpx(records), filename || `log-banding-${new Date().toISOString().slice(0, 10)}.gpx`, "application/gpx+xml");
+  return withGps.length;
+}
+
 function csvEscape(value) {
   if (value === undefined || value === null) return "";
   const str = String(value);
