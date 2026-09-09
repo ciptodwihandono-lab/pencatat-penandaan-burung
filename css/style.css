@@ -52,6 +52,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -315,6 +316,21 @@ body {
 .auth-gate-form .btn { width: 100%; }
 .auth-gate-divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
 .auth-gate-note { font-size: 11px; }
+
+.admin-user-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.admin-user-row:last-child { border-bottom: none; }
+.admin-user-email { font-weight: 600; font-size: 13px; }
+.admin-user-meta { font-size: 11px; color: var(--text-muted); }
+.admin-user-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-user-actions .btn { padding: 6px 10px; font-size: 12px; }
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
 .checkbox-row input { width: 16px; height: 16px; }

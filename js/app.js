@@ -25,7 +25,7 @@ function showToast(msg) {
 function setView(view) {
   state.view = view;
   document.querySelectorAll(".view").forEach((el) => (el.hidden = true));
-  const map = { list: "view-list", form: "view-form", detail: "view-detail", stats: "view-stats", tools: "view-tools", akun: "view-akun" };
+  const map = { list: "view-list", form: "view-form", detail: "view-detail", stats: "view-stats", tools: "view-tools", akun: "view-akun", admin: "view-admin" };
   document.getElementById(map[view]).hidden = false;
   document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -38,6 +38,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     if (btn.dataset.view === "stats") renderStats();
     if (btn.dataset.view === "tools") refreshBackupUi();
     if (btn.dataset.view === "akun") renderAkunUi();
+    if (btn.dataset.view === "admin") renderAdminUi();
   });
 });
 
@@ -505,10 +506,14 @@ async function renderAkunUi() {
     notConfigured.hidden = true;
     loggedIn.hidden = false;
     document.getElementById("akun-email-display").textContent = user.email;
+    document.getElementById("akun-shared-display").textContent = cloud.isShared()
+      ? "Gabung Tim (data digabung dengan akun tim lain yang juga digabungkan admin)"
+      : "Privat (hanya Anda yang lihat)";
   } else {
     notConfigured.hidden = !cloud.isEnabled() ? false : true;
     loggedIn.hidden = true;
   }
+  document.getElementById("nav-admin").hidden = !cloud.isAdmin();
 }
 
 // ---------- Gerbang login (wajib, tampil sebelum masuk ke aplikasi) ----------
@@ -524,6 +529,7 @@ function showGate() {
   document.getElementById("app").hidden = true;
   document.getElementById("gate-checking").hidden = true;
   document.getElementById("gate-error").hidden = true;
+  document.getElementById("gate-pending").hidden = true;
   document.getElementById("gate-login-form").hidden = false;
   document.getElementById("gate-login-form").reset();
   document.getElementById("gate-status").textContent = "";
@@ -535,8 +541,20 @@ function showGateError(message) {
   document.getElementById("app").hidden = true;
   document.getElementById("gate-checking").hidden = true;
   document.getElementById("gate-login-form").hidden = true;
+  document.getElementById("gate-pending").hidden = true;
   document.getElementById("gate-error").hidden = false;
   document.getElementById("gate-error-message").textContent = message;
+}
+
+function showPendingApproval(email) {
+  document.getElementById("auth-gate").hidden = false;
+  document.getElementById("app-header").hidden = true;
+  document.getElementById("app").hidden = true;
+  document.getElementById("gate-checking").hidden = true;
+  document.getElementById("gate-error").hidden = true;
+  document.getElementById("gate-login-form").hidden = true;
+  document.getElementById("gate-pending").hidden = false;
+  document.getElementById("gate-pending-email").textContent = email;
 }
 
 document.getElementById("gate-login-form").addEventListener("submit", async (e) => {
@@ -619,14 +637,41 @@ document.getElementById("akun-logout-btn").addEventListener("click", async () =>
 
 document.getElementById("akun-sync-btn").addEventListener("click", () => syncAll(false));
 
+document.getElementById("gate-pending-logout-btn").addEventListener("click", async () => {
+  await cloud.logout();
+});
+
+document.getElementById("gate-pending-refresh-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("gate-pending-refresh-btn");
+  btn.disabled = true;
+  try {
+    await cloud.refreshProfile();
+    await handleAuthedUser(cloud.currentUser());
+  } catch (err) {
+    showToast("Gagal memeriksa status: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function handleAuthedUser(user) {
+  await renderAkunUi();
+  if (cloud.isApproved()) {
+    showApp();
+    syncAll(true);
+  } else {
+    showPendingApproval(user.email);
+  }
+}
+
 function initAuthWatch() {
   document.getElementById("gate-checking").hidden = false;
   document.getElementById("gate-error").hidden = true;
+  document.getElementById("gate-pending").hidden = true;
   document.getElementById("gate-login-form").hidden = true;
 
   cloud
     .onAuthChange(async (user) => {
-      await renderAkunUi();
       if (!cloud.isEnabled()) {
         // Fitur cloud belum dikonfigurasi -- jangan kunci pengguna, langsung
         // masuk ke aplikasi seperti mode offline-lokal biasa.
@@ -634,9 +679,9 @@ function initAuthWatch() {
         return;
       }
       if (user) {
-        showApp();
-        syncAll(true);
+        await handleAuthedUser(user);
       } else {
+        await renderAkunUi();
         showGate();
       }
     })
@@ -648,6 +693,79 @@ function initAuthWatch() {
 document.getElementById("gate-retry-btn").addEventListener("click", initAuthWatch);
 
 initAuthWatch();
+
+// ---------- Panel Admin ----------
+function adminUserRow(u) {
+  const label = u.role === "admin" ? "Admin" : u.approved ? (u.shared ? "Disetujui · Gabung Tim" : "Disetujui · Privat") : "Menunggu persetujuan";
+  const approveBtn = u.approved
+    ? `<button class="btn admin-unapprove-btn" data-uid="${u.uid}">Cabut Persetujuan</button>`
+    : `<button class="btn btn-primary admin-approve-btn" data-uid="${u.uid}">Setujui</button>`;
+  const sharedBtn =
+    u.approved && u.role !== "admin"
+      ? `<button class="btn admin-shared-btn" data-uid="${u.uid}" data-next="${!u.shared}">${u.shared ? "Keluarkan dari Tim" : "Gabungkan ke Tim"}</button>`
+      : "";
+  return `<div class="admin-user-row">
+    <div>
+      <div class="admin-user-email">${escapeHtml(u.email)}</div>
+      <div class="admin-user-meta">${escapeHtml(label)}</div>
+    </div>
+    <div class="admin-user-actions">${approveBtn}${sharedBtn}</div>
+  </div>`;
+}
+
+async function renderAdminUi() {
+  if (!cloud.isAdmin()) return;
+  const pendingEl = document.getElementById("admin-pending-list");
+  const allEl = document.getElementById("admin-all-list");
+  pendingEl.innerHTML = "<p class=\"hint\">Memuat&hellip;</p>";
+  allEl.innerHTML = "<p class=\"hint\">Memuat&hellip;</p>";
+  try {
+    const users = await cloud.listAllProfiles();
+    const pending = users.filter((u) => !u.approved);
+    pendingEl.innerHTML = pending.length ? pending.map(adminUserRow).join("") : '<p class="hint">Tidak ada akun yang menunggu.</p>';
+    allEl.innerHTML = users.length ? users.map(adminUserRow).join("") : '<p class="hint">Belum ada akun.</p>';
+  } catch (err) {
+    pendingEl.innerHTML = allEl.innerHTML = `<p class="hint">Gagal memuat: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+document.getElementById("view-admin").addEventListener("click", async (e) => {
+  const approveBtn = e.target.closest(".admin-approve-btn");
+  const unapproveBtn = e.target.closest(".admin-unapprove-btn");
+  const sharedBtn = e.target.closest(".admin-shared-btn");
+  try {
+    if (approveBtn) {
+      await cloud.setApproved(approveBtn.dataset.uid, true);
+      showToast("Akun disetujui.");
+      await renderAdminUi();
+    } else if (unapproveBtn) {
+      if (!confirm("Cabut persetujuan akun ini? Pemilik akun tidak akan bisa masuk lagi sampai disetujui ulang.")) return;
+      await cloud.setApproved(unapproveBtn.dataset.uid, false);
+      showToast("Persetujuan dicabut.");
+      await renderAdminUi();
+    } else if (sharedBtn) {
+      const next = sharedBtn.dataset.next === "true";
+      await cloud.setShared(sharedBtn.dataset.uid, next);
+      showToast(next ? "Akun digabungkan ke tim." : "Akun dikeluarkan dari tim.");
+      await renderAdminUi();
+    }
+  } catch (err) {
+    showToast("Gagal: " + err.message);
+  }
+});
+
+document.getElementById("admin-wipe-btn").addEventListener("click", async () => {
+  if (!confirm("Hapus SEMUA catatan di koleksi cloud yang sedang aktif untuk akun Anda (privat atau tim)? Tindakan ini tidak bisa dibatalkan.")) return;
+  const status = document.getElementById("admin-wipe-status");
+  status.textContent = "Menghapus...";
+  try {
+    const n = await cloud.deleteAllCloudRecords((done) => (status.textContent = `Menghapus... (${done})`));
+    status.textContent = `Selesai: ${n} dokumen dihapus.`;
+    showToast(`${n} dokumen cloud dihapus.`);
+  } catch (err) {
+    status.textContent = "Gagal: " + err.message;
+  }
+});
 
 // ---------- Online/offline indicator ----------
 function updateOnlineStatus() {

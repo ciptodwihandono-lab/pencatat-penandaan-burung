@@ -46,6 +46,12 @@
     </form>
 
     <p id="gate-not-configured" class="hint" hidden>Fitur login belum dikonfigurasi untuk aplikasi ini.</p>
+
+    <div id="gate-pending" class="auth-gate-form" hidden>
+      <p class="hint">Akun <strong id="gate-pending-email"></strong> sudah terdaftar, tapi <strong>belum disetujui admin</strong>. Hubungi admin supaya akun ini bisa dipakai.</p>
+      <button type="button" id="gate-pending-refresh-btn" class="btn">Cek Lagi</button>
+      <button type="button" id="gate-pending-logout-btn" class="btn btn-ghost">Keluar</button>
+    </div>
   </div>
 </div>
 
@@ -63,6 +69,7 @@
     <button data-view="stats" class="nav-btn">Statistik</button>
     <button data-view="tools" class="nav-btn">Ekspor / Impor</button>
     <button data-view="akun" class="nav-btn" id="nav-akun">Akun</button>
+    <button data-view="admin" class="nav-btn" id="nav-admin" hidden>Admin</button>
   </nav>
 </header>
 
@@ -154,11 +161,34 @@
 
     <div id="akun-logged-in" class="tools-card" hidden>
       <p>Masuk sebagai <strong id="akun-email-display"></strong></p>
+      <p class="hint">Status data: <strong id="akun-shared-display"></strong></p>
       <p id="akun-sync-status" class="hint"></p>
       <div class="form-actions">
         <button id="akun-sync-btn" class="btn btn-primary">Sinkron Sekarang</button>
         <button id="akun-logout-btn" class="btn btn-ghost">Keluar</button>
       </div>
+    </div>
+  </section>
+
+  <section id="view-admin" class="view" hidden>
+    <h2>Admin &mdash; Kelola Akun</h2>
+
+    <div class="tools-card">
+      <h3>Menunggu Persetujuan</h3>
+      <p class="hint">Akun baru tidak bisa dipakai sampai disetujui di sini.</p>
+      <div id="admin-pending-list"><p class="hint">Memuat&hellip;</p></div>
+    </div>
+
+    <div class="tools-card">
+      <h3>Semua Akun</h3>
+      <div id="admin-all-list"><p class="hint">Memuat&hellip;</p></div>
+    </div>
+
+    <div class="tools-card tools-card-danger">
+      <h3>Bersihkan Data Sampah</h3>
+      <p>Hapus semua catatan di koleksi cloud yang sedang aktif untuk akun Anda saat ini (privat atau tim, sesuai status Anda). Pakai ini kalau ada data rusak/salah impor yang perlu dibersihkan total.</p>
+      <button id="admin-wipe-btn" class="btn btn-danger">Hapus Semua Data di Cloud (Akun Ini)</button>
+      <p id="admin-wipe-status" class="hint"></p>
     </div>
   </section>
 
