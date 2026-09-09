@@ -83,8 +83,7 @@ body {
 
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand-icon { width: 52px; height: 52px; }
-.brand-home-btn { cursor: pointer; border-radius: 8px; }
-.brand-home-btn:hover { opacity: 0.85; }
+.brand-home-btn { border-radius: 8px; }
 .brand-home-btn:focus-visible { outline: 2px solid var(--ink-600); outline-offset: 4px; }
 .app-header h1 { font-size: 18px; margin: 0; }
 .subtitle { margin: 2px 0 0; font-size: 12px; opacity: 0.85; }
