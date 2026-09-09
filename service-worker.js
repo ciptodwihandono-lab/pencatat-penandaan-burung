@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v9";
+const CACHE_NAME = "ringing-burung-cache-v10";
 const APP_SHELL = [
   "./",
   "./index.html",

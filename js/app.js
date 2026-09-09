@@ -1,5 +1,6 @@
-import { FIELDS, SECTIONS } from "./fields.js";
+import { FIELDS, SECTIONS, LOGNET_FIELDS, LOGNET_CSV_COLUMNS } from "./fields.js";
 import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAdd, clearAll, getUnsyncedRecords, findByCloudId } from "./db.js";
+import { addLognet, updateLognet, deleteLognet, getLognet, getAllLognet, clearAllLognet, bulkAddLognet } from "./db.js";
 import { downloadCsv, csvToRecords, downloadKml, downloadGpx } from "./export.js";
 import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
@@ -12,6 +13,9 @@ const state = {
   editingId: null,
   detailId: null,
   photoDataUrl: null,
+  lognetRecords: [],
+  lognetEditingId: null,
+  lognetDetailId: null,
 };
 
 function showToast(msg) {
@@ -25,9 +29,21 @@ function showToast(msg) {
 function setView(view) {
   state.view = view;
   document.querySelectorAll(".view").forEach((el) => (el.hidden = true));
-  const map = { list: "view-list", form: "view-form", detail: "view-detail", stats: "view-stats", tools: "view-tools", akun: "view-akun", admin: "view-admin" };
+  const map = {
+    list: "view-list",
+    form: "view-form",
+    detail: "view-detail",
+    stats: "view-stats",
+    tools: "view-tools",
+    akun: "view-akun",
+    admin: "view-admin",
+    lognet: "view-lognet",
+    "lognet-form": "view-lognet-form",
+    "lognet-detail": "view-lognet-detail",
+  };
   document.getElementById(map[view]).hidden = false;
-  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  const navKey = view.startsWith("lognet") ? "lognet" : view;
+  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === navKey));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -39,6 +55,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     if (btn.dataset.view === "tools") refreshBackupUi();
     if (btn.dataset.view === "akun") renderAkunUi();
     if (btn.dataset.view === "admin") renderAdminUi();
+    if (btn.dataset.view === "lognet") reloadLognet();
   });
 });
 
@@ -372,6 +389,173 @@ document.getElementById("detail-delete-btn").addEventListener("click", async () 
   setView("list");
 });
 
+// ---------- Log Mist Net (Log Banding) — halaman terpisah ----------
+async function reloadLognet() {
+  state.lognetRecords = await getAllLognet();
+  state.lognetRecords.sort((a, b) => (b.net_tanggal || "").localeCompare(a.net_tanggal || "") || (b.id - a.id));
+  renderLognetList();
+}
+
+function lognetMatchesFilters(r, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return ["net_kode", "net_lokasi", "net_nama_burung", "net_no"].some((k) => (r[k] || "").toLowerCase().includes(q));
+}
+
+function lognetCardHtml(r) {
+  return `
+    <div class="record-card" data-id="${r.id}">
+      <div class="record-main">
+        <strong>${escapeHtml(r.net_kode || "(kode net belum diisi)")}</strong> — ${escapeHtml(r.net_nama_burung || "-")}
+        <div class="record-sub">${escapeHtml(r.net_tanggal || "-")} ${escapeHtml(r.net_waktu || "")} &middot; ${escapeHtml(r.net_lokasi || "-")}</div>
+      </div>
+    </div>`;
+}
+
+function renderLognetList() {
+  const query = document.getElementById("lognet-search-box").value.trim();
+  const filtered = state.lognetRecords.filter((r) => lognetMatchesFilters(r, query));
+  document.getElementById("lognet-count").textContent = `${filtered.length} dari ${state.lognetRecords.length} log`;
+  const container = document.getElementById("lognet-list-container");
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="empty-state">Belum ada log mist net. Klik "+ Tambah Log Net" untuk mulai mencatat.</p>';
+    return;
+  }
+  container.innerHTML = filtered.map(lognetCardHtml).join("");
+  container.querySelectorAll(".record-card").forEach((card) => {
+    card.addEventListener("click", () => openLognetDetail(Number(card.dataset.id)));
+  });
+}
+
+document.getElementById("lognet-search-box").addEventListener("input", renderLognetList);
+document.getElementById("lognet-add-btn").addEventListener("click", () => openLognetForm(null));
+
+function buildLognetForm() {
+  const form = document.getElementById("lognet-form");
+  const fields = LOGNET_FIELDS.map(fieldHtml).join("");
+  form.innerHTML =
+    `<div class="form-section"><div class="form-grid">${fields}</div></div>` +
+    `<div class="form-actions">
+      <button type="submit" class="btn btn-primary">Simpan Log</button>
+      <button type="button" id="lognet-form-cancel-btn" class="btn btn-ghost">Batal</button>
+    </div>`;
+  document.getElementById("lognet-form-cancel-btn").addEventListener("click", () => setView("lognet"));
+  form.addEventListener("submit", handleLognetFormSubmit);
+}
+
+function openLognetForm(id) {
+  state.lognetEditingId = id;
+  buildLognetForm();
+  document.getElementById("lognet-form-title").textContent = id ? "Edit Log Mist Net" : "Tambah Log Mist Net";
+  if (id) {
+    getLognet(id).then((rec) => {
+      if (!rec) return;
+      LOGNET_FIELDS.forEach((f) => {
+        const el = document.getElementById(`f_${f.key}`);
+        if (el && rec[f.key] !== undefined) el.value = rec[f.key];
+      });
+    });
+  } else {
+    const today = new Date();
+    document.getElementById("f_net_tanggal").value = today.toISOString().slice(0, 10);
+    document.getElementById("f_net_waktu").value = today.toTimeString().slice(0, 5);
+  }
+  setView("lognet-form");
+}
+
+async function handleLognetFormSubmit(e) {
+  e.preventDefault();
+  const record = {};
+  let missing = [];
+  LOGNET_FIELDS.forEach((f) => {
+    const el = document.getElementById(`f_${f.key}`);
+    const val = el ? el.value.trim() : "";
+    if (f.required && !val) missing.push(f.label);
+    record[f.key] = f.type === "number" ? (val === "" ? "" : Number(val)) : val;
+  });
+  if (missing.length) {
+    showToast("Lengkapi dulu: " + missing.join(", "));
+    return;
+  }
+  const now = new Date().toISOString();
+  record.updated_at = now;
+
+  try {
+    if (state.lognetEditingId) {
+      record.id = state.lognetEditingId;
+      const existing = await getLognet(state.lognetEditingId);
+      record.created_at = existing?.created_at || now;
+      await updateLognet(record);
+      showToast("Log mist net berhasil diperbarui.");
+    } else {
+      record.created_at = now;
+      await addLognet(record);
+      showToast("Log mist net berhasil disimpan.");
+    }
+  } catch (err) {
+    showToast("Gagal menyimpan: " + err.message);
+    return;
+  }
+  await reloadLognet();
+  setView("lognet");
+}
+
+async function openLognetDetail(id) {
+  state.lognetDetailId = id;
+  const rec = await getLognet(id);
+  if (!rec) return;
+  const container = document.getElementById("lognet-detail-container");
+  container.innerHTML =
+    `<h2>${escapeHtml(rec.net_kode || "(kode net belum diisi)")}</h2><dl class="detail-grid">` +
+    LOGNET_FIELDS.filter((f) => rec[f.key] !== undefined && rec[f.key] !== "")
+      .map((f) => `<div class="detail-item"><dt>${escapeHtml(f.label)}</dt><dd>${escapeHtml(rec[f.key])}</dd></div>`)
+      .join("") +
+    `</dl>`;
+  setView("lognet-detail");
+}
+
+document.getElementById("lognet-detail-back-btn").addEventListener("click", () => setView("lognet"));
+document.getElementById("lognet-detail-edit-btn").addEventListener("click", () => openLognetForm(state.lognetDetailId));
+document.getElementById("lognet-detail-delete-btn").addEventListener("click", async () => {
+  if (!confirm("Hapus log mist net ini secara permanen?")) return;
+  await deleteLognet(state.lognetDetailId);
+  await reloadLognet();
+  showToast("Log dihapus.");
+  setView("lognet");
+});
+
+document.getElementById("lognet-export-btn").addEventListener("click", async () => {
+  const recs = await getAllLognet();
+  if (recs.length === 0) return showToast("Belum ada data log banding untuk diekspor.");
+  downloadCsv(recs, `log-banding-${new Date().toISOString().slice(0, 10)}.csv`, LOGNET_CSV_COLUMNS);
+  showToast(`Mengekspor ${recs.length} log ke CSV.`);
+});
+
+document.getElementById("lognet-import-btn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("lognet-import-file");
+  const status = document.getElementById("lognet-import-status");
+  const file = fileInput.files[0];
+  if (!file) {
+    status.textContent = "Pilih file CSV terlebih dahulu.";
+    return;
+  }
+  const text = await file.text();
+  const records = csvToRecords(text);
+  const cleaned = records.map((r) => {
+    const out = { ...r };
+    LOGNET_FIELDS.forEach((f) => {
+      if (f.type === "number" && out[f.key] !== "" && out[f.key] !== undefined) {
+        out[f.key] = Number(out[f.key]);
+      }
+    });
+    return out;
+  });
+  await bulkAddLognet(cleaned);
+  status.textContent = `${cleaned.length} log berhasil diimpor.`;
+  await reloadLognet();
+  showToast(`${cleaned.length} log diimpor.`);
+});
+
 // ---------- Stats view ----------
 function renderStats() {
   const recs = state.records;
@@ -539,9 +723,11 @@ document.getElementById("auto-backup-toggle").addEventListener("change", async (
 });
 
 document.getElementById("clear-all-btn").addEventListener("click", async () => {
-  if (!confirm("Yakin ingin menghapus SEMUA data di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) return;
+  if (!confirm("Yakin ingin menghapus SEMUA data (tally sheet dan Log Banding) di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) return;
   await clearAll();
+  await clearAllLognet();
   await reload();
+  await reloadLognet();
   showToast("Semua data telah dihapus.");
 });
 
@@ -856,3 +1042,4 @@ if ("serviceWorker" in navigator) {
 
 // ---------- Init ----------
 reload();
+reloadLognet();

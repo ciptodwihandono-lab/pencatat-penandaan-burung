@@ -66,6 +66,7 @@
   <nav class="main-nav">
     <button data-view="list" class="nav-btn active">Daftar Data</button>
     <button data-view="form" class="nav-btn">+ Tambah Data</button>
+    <button data-view="lognet" class="nav-btn">Log Banding</button>
     <button data-view="stats" class="nav-btn">Statistik</button>
     <button data-view="tools" class="nav-btn">Ekspor / Impor</button>
     <button data-view="akun" class="nav-btn" id="nav-akun">Akun</button>
@@ -106,6 +107,33 @@
     <div id="detail-container"></div>
   </section>
 
+  <section id="view-lognet" class="view" hidden>
+    <div class="toolbar">
+      <input type="search" id="lognet-search-box" placeholder="Cari kode net, lokasi, atau nama burung..." />
+      <span id="lognet-count" class="record-count"></span>
+    </div>
+    <div class="form-actions" style="margin: 0 0 14px">
+      <button id="lognet-add-btn" class="btn btn-primary">+ Tambah Log Net</button>
+    </div>
+    <div id="lognet-list-container" class="list-container">
+      <p class="empty-state">Memuat data...</p>
+    </div>
+  </section>
+
+  <section id="view-lognet-form" class="view" hidden>
+    <h2 id="lognet-form-title">Tambah Log Mist Net</h2>
+    <form id="lognet-form" novalidate></form>
+  </section>
+
+  <section id="view-lognet-detail" class="view" hidden>
+    <div class="detail-actions">
+      <button id="lognet-detail-edit-btn" class="btn">Edit</button>
+      <button id="lognet-detail-delete-btn" class="btn btn-danger">Hapus</button>
+      <button id="lognet-detail-back-btn" class="btn btn-ghost">&larr; Kembali</button>
+    </div>
+    <div id="lognet-detail-container"></div>
+  </section>
+
   <section id="view-stats" class="view" hidden>
     <h2>Statistik Ringkasan</h2>
     <div id="stats-container" class="stats-grid"></div>
@@ -134,6 +162,16 @@
       <p id="import-status" class="hint"></p>
     </div>
     <div class="tools-card">
+      <h3>Ekspor / Impor Log Banding (Mist Net)</h3>
+      <p>Data Log Banding tersimpan terpisah dari data tally sheet di atas — ekspor/impor CSV-nya juga terpisah.</p>
+      <button id="lognet-export-btn" class="btn btn-primary">Ekspor Log Banding ke CSV</button>
+      <div class="form-actions" style="margin-top:10px">
+        <input type="file" id="lognet-import-file" accept=".csv" />
+        <button id="lognet-import-btn" class="btn">Impor Log Banding dari CSV</button>
+      </div>
+      <p id="lognet-import-status" class="hint"></p>
+    </div>
+    <div class="tools-card">
       <h3>Backup ke Folder Sinkron (Google Drive/OneDrive)</h3>
       <p>Pilih folder di komputer ini yang otomatis disinkronkan ke cloud (misalnya folder "Google Drive" dari Google Drive Desktop, atau folder OneDrive). Setiap backup akan menyimpan file CSV + JSON ke folder itu, lalu aplikasi sinkronisasi yang meng-upload-nya ke cloud.</p>
       <p id="backup-folder-status" class="hint">Belum ada folder backup yang dipilih.</p>
@@ -154,7 +192,7 @@
     </div>
     <div class="tools-card tools-card-danger">
       <h3>Hapus Semua Data</h3>
-      <p>Tindakan ini menghapus seluruh catatan di perangkat ini secara permanen. Pastikan sudah melakukan ekspor/backup.</p>
+      <p>Tindakan ini menghapus seluruh catatan (data tally sheet DAN data Log Banding) di perangkat ini secara permanen. Pastikan sudah melakukan ekspor/backup.</p>
       <button id="clear-all-btn" class="btn btn-danger">Hapus Semua Data</button>
     </div>
   </section>

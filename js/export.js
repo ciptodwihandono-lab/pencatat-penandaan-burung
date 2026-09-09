@@ -82,14 +82,14 @@ function csvEscape(value) {
   return str;
 }
 
-export function recordsToCsv(records) {
-  const header = CSV_COLUMNS.join(",");
-  const rows = records.map((r) => CSV_COLUMNS.map((c) => csvEscape(r[c])).join(","));
+export function recordsToCsv(records, columns = CSV_COLUMNS) {
+  const header = columns.join(",");
+  const rows = records.map((r) => columns.map((c) => csvEscape(r[c])).join(","));
   return [header, ...rows].join("\r\n");
 }
 
-export function downloadCsv(records, filename) {
-  const csv = "﻿" + recordsToCsv(records); // BOM agar Excel baca UTF-8 dengan benar
+export function downloadCsv(records, filename, columns = CSV_COLUMNS) {
+  const csv = "﻿" + recordsToCsv(records, columns); // BOM agar Excel baca UTF-8 dengan benar
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

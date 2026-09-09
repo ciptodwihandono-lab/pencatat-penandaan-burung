@@ -2,9 +2,10 @@
 // sehingga input data tetap berfungsi tanpa koneksi internet.
 
 const DB_NAME = "ringing_burung_db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE = "catatan";
 const SETTINGS_STORE = "pengaturan";
+const LOGNET_STORE = "log_banding";
 
 let dbPromise = null;
 
@@ -30,6 +31,12 @@ function openDb() {
       }
       if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
         db.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(LOGNET_STORE)) {
+        const lognetStore = db.createObjectStore(LOGNET_STORE, { keyPath: "id", autoIncrement: true });
+        lognetStore.createIndex("net_tanggal", "net_tanggal", { unique: false });
+        lognetStore.createIndex("net_lokasi", "net_lokasi", { unique: false });
+        lognetStore.createIndex("net_kode", "net_kode", { unique: false });
       }
     };
     req.onsuccess = (e) => {
@@ -111,6 +118,78 @@ export async function clearAll() {
 
 export async function bulkAdd(records) {
   const store = await tx(STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    let count = 0;
+    records.forEach((r) => {
+      const { id, ...rest } = r;
+      const req = store.add(rest);
+      req.onsuccess = () => {
+        count++;
+        if (count === records.length) resolve(count);
+      };
+      req.onerror = () => reject(req.error);
+    });
+    if (records.length === 0) resolve(0);
+  });
+}
+
+// ---------- Log Mist Net (Log Banding) — penyimpanan terpisah ----------
+export async function addLognet(record) {
+  const store = await tx(LOGNET_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.add(record);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function updateLognet(record) {
+  const store = await tx(LOGNET_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.put(record);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteLognet(id) {
+  const store = await tx(LOGNET_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getLognet(id) {
+  const store = await tx(LOGNET_STORE, "readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getAllLognet() {
+  const store = await tx(LOGNET_STORE, "readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function clearAllLognet() {
+  const store = await tx(LOGNET_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function bulkAddLognet(records) {
+  const store = await tx(LOGNET_STORE, "readwrite");
   return new Promise((resolve, reject) => {
     let count = 0;
     records.forEach((r) => {

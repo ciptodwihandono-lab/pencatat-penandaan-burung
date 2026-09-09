@@ -73,28 +73,6 @@ export const FIELDS = [
   { key: "moult_score", label: "Moult Score", type: "text", section: "tambahan" },
   { key: "photo_ref", label: "Photo (nomor/keterangan foto sesuai tally sheet)", type: "text", section: "tambahan" },
   { key: "catatan", label: "Catatan (Notes)", type: "textarea", section: "tambahan" },
-
-  // Log Mist Net (Log Banding) — mengikuti persis format file "Log Banding.xlsx"
-  // (header sesi: Tanggal/Lokasi/Cuaca/Koordinat/Habitat, lalu per baris cek net).
-  // Semua opsional supaya bisa dipakai berdampingan dengan data tally sheet di atas,
-  // atau diisi sendiri untuk mencatat usaha tangkap (effort) per net.
-  { key: "net_tanggal", label: "Tanggal", type: "date", section: "log_net" },
-  { key: "net_lokasi", label: "Lokasi", type: "text", section: "log_net" },
-  { key: "net_cuaca", label: "Cuaca", type: "text", section: "log_net" },
-  { key: "net_koordinat", label: "Koordinat", type: "text", section: "log_net" },
-  { key: "net_habitat", label: "Habitat", type: "text", section: "log_net" },
-  { key: "net_no", label: "No", type: "text", section: "log_net" },
-  { key: "net_waktu", label: "Waktu", type: "time", section: "log_net" },
-  { key: "net_kode", label: "Kode Net", type: "text", section: "log_net" },
-  { key: "net_panjang", label: "Panjang Net (m)", type: "number", step: "0.1", section: "log_net" },
-  { key: "net_jumlah_kantong", label: "Jumlah Kantong", type: "number", section: "log_net" },
-  { key: "net_ukuran_mesh", label: "Ukuran Mesh (mm)", type: "text", section: "log_net" },
-  { key: "net_tinggi", label: "Tinggi Net (m)", type: "number", step: "0.1", section: "log_net" },
-  { key: "net_kantong", label: "Kantong (nomor, dari bawah ke atas)", type: "text", section: "log_net" },
-  { key: "net_arah_masuk", label: "Masuk dari Arah", type: "suggest", options: ARAH_MASUK_SUGGESTIONS, section: "log_net" },
-  { key: "net_nama_burung", label: "Nama Burung", type: "text", section: "log_net" },
-  { key: "net_retrap", label: "Retrap", type: "suggest", options: RETRAP_SUGGESTIONS, section: "log_net" },
-  { key: "net_catatan", label: "Catatan", type: "textarea", section: "log_net" },
 ];
 
 export const SECTIONS = [
@@ -109,7 +87,6 @@ export const SECTIONS = [
   { key: "berat", title: "Berat (gram)" },
   { key: "morfometri", title: "Morfometri (mm)" },
   { key: "tambahan", title: "Brood Patch, Moult, Foto & Catatan" },
-  { key: "log_net", title: "Log Mist Net (Log Banding)" },
 ];
 
 export const CSV_COLUMNS = [
@@ -123,3 +100,29 @@ export const CSV_COLUMNS = [
   "created_at",
   "updated_at",
 ];
+
+// ---------- Log Mist Net (Log Banding) — halaman terpisah ----------
+// Mengikuti persis format file "Log Banding.xlsx": header sesi
+// (Tanggal/Lokasi/Cuaca/Koordinat/Habitat) lalu per baris cek net.
+// Skema dan penyimpanan terpisah dari data tally sheet di atas.
+export const LOGNET_FIELDS = [
+  { key: "net_tanggal", label: "Tanggal", type: "date", required: true },
+  { key: "net_lokasi", label: "Lokasi", type: "text", required: true },
+  { key: "net_cuaca", label: "Cuaca", type: "text" },
+  { key: "net_koordinat", label: "Koordinat", type: "text" },
+  { key: "net_habitat", label: "Habitat", type: "text" },
+  { key: "net_no", label: "No", type: "text" },
+  { key: "net_waktu", label: "Waktu", type: "time" },
+  { key: "net_kode", label: "Kode Net", type: "text" },
+  { key: "net_panjang", label: "Panjang Net (m)", type: "number", step: "0.1" },
+  { key: "net_jumlah_kantong", label: "Jumlah Kantong", type: "number" },
+  { key: "net_ukuran_mesh", label: "Ukuran Mesh (mm)", type: "text" },
+  { key: "net_tinggi", label: "Tinggi Net (m)", type: "number", step: "0.1" },
+  { key: "net_kantong", label: "Kantong (nomor, dari bawah ke atas)", type: "text" },
+  { key: "net_arah_masuk", label: "Masuk dari Arah", type: "suggest", options: ARAH_MASUK_SUGGESTIONS },
+  { key: "net_nama_burung", label: "Nama Burung", type: "text" },
+  { key: "net_retrap", label: "Retrap", type: "suggest", options: RETRAP_SUGGESTIONS },
+  { key: "net_catatan", label: "Catatan", type: "textarea" },
+];
+
+export const LOGNET_CSV_COLUMNS = ["id", ...LOGNET_FIELDS.map((f) => f.key), "created_at", "updated_at"];
