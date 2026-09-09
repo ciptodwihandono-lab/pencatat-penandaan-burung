@@ -103,13 +103,16 @@ export const CSV_COLUMNS = [
 
 // ---------- Log Mist Net (Log Banding) — halaman terpisah ----------
 // Mengikuti persis format file "Log Banding.xlsx": header sesi
-// (Tanggal/Lokasi/Cuaca/Koordinat/Habitat) lalu per baris cek net.
+// (Tanggal/Lokasi/Cuaca/Habitat) lalu per baris cek net. Kolom
+// "Koordinat" dibuat sebagai input GPS (latitude/longitude) yang bisa
+// diambil otomatis lewat GPS perangkat, bukan teks bebas.
 // Skema dan penyimpanan terpisah dari data tally sheet di atas.
 export const LOGNET_FIELDS = [
   { key: "net_tanggal", label: "Tanggal", type: "date", required: true },
   { key: "net_lokasi", label: "Lokasi", type: "text", required: true },
   { key: "net_cuaca", label: "Cuaca", type: "text" },
-  { key: "net_koordinat", label: "Koordinat", type: "text" },
+  { key: "net_latitude", label: "Latitude GPS", type: "number", step: "any" },
+  { key: "net_longitude", label: "Longitude GPS", type: "number", step: "any" },
   { key: "net_habitat", label: "Habitat", type: "text" },
   { key: "net_no", label: "No", type: "text" },
   { key: "net_waktu", label: "Waktu", type: "time" },

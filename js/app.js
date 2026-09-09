@@ -433,14 +433,33 @@ document.getElementById("lognet-add-btn").addEventListener("click", () => openLo
 function buildLognetForm() {
   const form = document.getElementById("lognet-form");
   const fields = LOGNET_FIELDS.map(fieldHtml).join("");
+  const gpsExtra = `<div class="field"><label>&nbsp;</label><button type="button" id="lognet-gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>`;
   form.innerHTML =
-    `<div class="form-section"><div class="form-grid">${fields}</div></div>` +
+    `<div class="form-section"><div class="form-grid">${fields}${gpsExtra}</div></div>` +
     `<div class="form-actions">
       <button type="submit" class="btn btn-primary">Simpan Log</button>
       <button type="button" id="lognet-form-cancel-btn" class="btn btn-ghost">Batal</button>
     </div>`;
   document.getElementById("lognet-form-cancel-btn").addEventListener("click", () => setView("lognet"));
+  document.getElementById("lognet-gps-btn").addEventListener("click", fetchLognetGps);
   form.addEventListener("submit", handleLognetFormSubmit);
+}
+
+function fetchLognetGps() {
+  if (!navigator.geolocation) {
+    showToast("Perangkat ini tidak mendukung GPS.");
+    return;
+  }
+  showToast("Mengambil lokasi GPS...");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      document.getElementById("f_net_latitude").value = pos.coords.latitude.toFixed(6);
+      document.getElementById("f_net_longitude").value = pos.coords.longitude.toFixed(6);
+      showToast("Lokasi GPS berhasil diambil.");
+    },
+    (err) => showToast("Gagal mengambil GPS: " + err.message),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 function openLognetForm(id) {
