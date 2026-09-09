@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v2";
+const CACHE_NAME = "ringing-burung-cache-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const APP_SHELL = [
   "./js/fields.js",
   "./js/utm.js",
   "./js/backup.js",
+  "./js/charts.js",
   "./icons/icon.svg",
 ];
 

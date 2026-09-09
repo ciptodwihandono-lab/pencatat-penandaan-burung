@@ -3,6 +3,7 @@ import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAd
 import { downloadCsv, csvToRecords, downloadKml, downloadGpx } from "./export.js";
 import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
+import { barChartHorizontal, lineChartTrend, barChartCategorical, topCounts, monthlyTrend } from "./charts.js";
 
 const state = {
   view: "list",
@@ -330,13 +331,42 @@ function renderStats() {
   const topSpecies = Object.entries(bySpecies).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const topRinger = Object.entries(byRinger).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
+  const speciesChartData = topCounts(recs, "nama_spesies", 10).sort((a, b) => a.value - b.value);
+  const trendData = monthlyTrend(recs);
+  const ageData = topCounts(recs, "umur", 6);
+  const sexData = topCounts(recs, "kelamin", 6);
+
   container.innerHTML = `
     <div class="stat-card"><div class="num">${total}</div><div class="label">Total Catatan</div></div>
     <div class="stat-card"><div class="num">${baru}</div><div class="label">Tangkap Baru</div></div>
     <div class="stat-card"><div class="num">${retrap}</div><div class="label">Retrap</div></div>
     <div class="stat-card"><div class="num">${Object.keys(bySpecies).length}</div><div class="label">Jumlah Spesies</div></div>
+
+    <div class="stat-card wide chart-card">
+      <div class="label">Grafik: 10 Spesies Terbanyak</div>
+      ${barChartHorizontal(speciesChartData)}
+      <p class="chart-caption">Jumlah individu tercatat per spesies (10 tertinggi).</p>
+    </div>
+
+    <div class="stat-card wide chart-card">
+      <div class="label">Grafik: Tren Penangkapan per Bulan</div>
+      ${lineChartTrend(trendData)}
+      <p class="chart-caption">Jumlah catatan penandaan per bulan, seluruh periode data.</p>
+    </div>
+
+    <div class="chart-row wide">
+      <div class="stat-card chart-card">
+        <div class="label">Grafik: Komposisi Umur</div>
+        ${barChartCategorical(ageData)}
+      </div>
+      <div class="stat-card chart-card">
+        <div class="label">Grafik: Komposisi Jenis Kelamin</div>
+        ${barChartCategorical(sexData)}
+      </div>
+    </div>
+
     <div class="stat-card wide">
-      <div class="label">Spesies Terbanyak</div>
+      <div class="label">Tabel: Spesies Terbanyak</div>
       <ul class="stat-list">${topSpecies.map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${v}</strong></li>`).join("") || "<li>Belum ada data</li>"}</ul>
     </div>
     <div class="stat-card wide">
