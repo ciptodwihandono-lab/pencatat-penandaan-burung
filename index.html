@@ -28,6 +28,7 @@
     <button data-view="form" class="nav-btn">+ Tambah Data</button>
     <button data-view="stats" class="nav-btn">Statistik</button>
     <button data-view="tools" class="nav-btn">Ekspor / Impor</button>
+    <button data-view="akun" class="nav-btn" id="nav-akun">Akun</button>
   </nav>
 </header>
 
@@ -108,6 +109,43 @@
       <h3>Hapus Semua Data</h3>
       <p>Tindakan ini menghapus seluruh catatan di perangkat ini secara permanen. Pastikan sudah melakukan ekspor/backup.</p>
       <button id="clear-all-btn" class="btn btn-danger">Hapus Semua Data</button>
+    </div>
+  </section>
+
+  <section id="view-akun" class="view" hidden>
+    <h2>Akun &amp; Sinkronisasi Tim</h2>
+    <div id="akun-not-configured" class="tools-card" hidden>
+      <p>Fitur login/sinkronisasi cloud belum diaktifkan untuk aplikasi ini. Aplikasi tetap berfungsi penuh secara offline-lokal seperti biasa.</p>
+    </div>
+
+    <div id="akun-logged-out" class="tools-card" hidden>
+      <p class="hint">Login opsional &mdash; tanpa login, data tetap tersimpan lokal di perangkat ini seperti biasa. Login untuk menggabungkan data Anda dengan data tim (semua yang login akan melihat data yang sama).</p>
+      <form id="akun-form">
+        <div class="form-grid">
+          <div class="field">
+            <label for="akun-email">Email</label>
+            <input type="email" id="akun-email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="akun-password">Password</label>
+            <input type="password" id="akun-password" autocomplete="current-password" required minlength="6" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" id="akun-login-btn" class="btn btn-primary">Masuk</button>
+          <button type="button" id="akun-register-btn" class="btn">Daftar Akun Baru</button>
+        </div>
+      </form>
+      <p id="akun-status" class="hint"></p>
+    </div>
+
+    <div id="akun-logged-in" class="tools-card" hidden>
+      <p>Masuk sebagai <strong id="akun-email-display"></strong></p>
+      <p id="akun-sync-status" class="hint"></p>
+      <div class="form-actions">
+        <button id="akun-sync-btn" class="btn btn-primary">Sinkron Sekarang</button>
+        <button id="akun-logout-btn" class="btn btn-ghost">Keluar</button>
+      </div>
     </div>
   </section>
 

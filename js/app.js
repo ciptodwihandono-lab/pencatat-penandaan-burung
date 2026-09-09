@@ -1,9 +1,10 @@
 import { FIELDS, SECTIONS } from "./fields.js";
-import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAdd, clearAll } from "./db.js";
+import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAdd, clearAll, getUnsyncedRecords, findByCloudId } from "./db.js";
 import { downloadCsv, csvToRecords, downloadKml, downloadGpx } from "./export.js";
 import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
 import { barChartHorizontal, lineChartTrend, barChartCategorical, topCounts, monthlyTrend } from "./charts.js";
+import * as cloud from "./cloud.js";
 
 const state = {
   view: "list",
@@ -24,7 +25,7 @@ function showToast(msg) {
 function setView(view) {
   state.view = view;
   document.querySelectorAll(".view").forEach((el) => (el.hidden = true));
-  const map = { list: "view-list", form: "view-form", detail: "view-detail", stats: "view-stats", tools: "view-tools" };
+  const map = { list: "view-list", form: "view-form", detail: "view-detail", stats: "view-stats", tools: "view-tools", akun: "view-akun" };
   document.getElementById(map[view]).hidden = false;
   document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -36,6 +37,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     else setView(btn.dataset.view);
     if (btn.dataset.view === "stats") renderStats();
     if (btn.dataset.view === "tools") refreshBackupUi();
+    if (btn.dataset.view === "akun") renderAkunUi();
   });
 });
 
@@ -248,16 +250,19 @@ async function handleFormSubmit(e) {
   const now = new Date().toISOString();
   record.updated_at = now;
 
+  let savedId;
   try {
     if (state.editingId) {
       record.id = state.editingId;
       const existing = await getRecord(state.editingId);
       record.created_at = existing?.created_at || now;
+      if (existing?.cloud_id) record.cloud_id = existing.cloud_id;
       await updateRecord(record);
+      savedId = state.editingId;
       showToast("Catatan berhasil diperbarui.");
     } else {
       record.created_at = now;
-      await addRecord(record);
+      savedId = await addRecord(record);
       showToast("Catatan berhasil disimpan.");
     }
   } catch (err) {
@@ -267,6 +272,20 @@ async function handleFormSubmit(e) {
   await reload();
   setView("list");
   maybeAutoBackup();
+  maybeCloudPush(savedId);
+}
+
+async function maybeCloudPush(id) {
+  if (!cloud.currentUser()) return;
+  try {
+    const rec = await getRecord(id);
+    const cloudId = await cloud.pushRecord(rec);
+    if (cloudId && cloudId !== rec.cloud_id) {
+      await updateRecord({ ...rec, cloud_id: cloudId });
+    }
+  } catch (err) {
+    showToast("Sinkron ke cloud gagal (tersimpan lokal): " + err.message);
+  }
 }
 
 async function maybeAutoBackup() {
@@ -307,7 +326,11 @@ document.getElementById("detail-back-btn").addEventListener("click", () => setVi
 document.getElementById("detail-edit-btn").addEventListener("click", () => openForm(state.detailId));
 document.getElementById("detail-delete-btn").addEventListener("click", async () => {
   if (!confirm("Hapus catatan ini secara permanen?")) return;
+  const rec = await getRecord(state.detailId);
   await deleteRecord(state.detailId);
+  if (rec?.cloud_id && cloud.currentUser()) {
+    cloud.deleteCloudRecord(rec.cloud_id).catch((err) => showToast("Gagal hapus di cloud: " + err.message));
+  }
   await reload();
   showToast("Catatan dihapus.");
   setView("list");
@@ -469,6 +492,123 @@ document.getElementById("clear-all-btn").addEventListener("click", async () => {
   await clearAll();
   await reload();
   showToast("Semua data telah dihapus.");
+});
+
+// ---------- Akun & sinkronisasi cloud ----------
+let akunBusy = false;
+
+async function renderAkunUi() {
+  const notConfigured = document.getElementById("akun-not-configured");
+  const loggedOut = document.getElementById("akun-logged-out");
+  const loggedIn = document.getElementById("akun-logged-in");
+
+  if (!cloud.isEnabled()) {
+    notConfigured.hidden = false;
+    loggedOut.hidden = true;
+    loggedIn.hidden = true;
+    return;
+  }
+  notConfigured.hidden = true;
+
+  const user = cloud.currentUser();
+  if (user) {
+    loggedOut.hidden = true;
+    loggedIn.hidden = false;
+    document.getElementById("akun-email-display").textContent = user.email;
+  } else {
+    loggedOut.hidden = false;
+    loggedIn.hidden = true;
+  }
+}
+
+async function syncAll(silent) {
+  if (!cloud.currentUser()) return;
+  const syncStatus = document.getElementById("akun-sync-status");
+  try {
+    if (!silent && syncStatus) syncStatus.textContent = "Menyinkronkan data...";
+
+    const unsynced = await getUnsyncedRecords();
+    for (const rec of unsynced) {
+      const cloudId = await cloud.pushRecord(rec);
+      if (cloudId) await updateRecord({ ...rec, cloud_id: cloudId });
+    }
+
+    const cloudRecords = await cloud.fetchAllCloudRecords();
+    let pulled = 0;
+    for (const cr of cloudRecords) {
+      const existing = await findByCloudId(cr.cloud_id);
+      if (existing) continue;
+      const { cloud_id, synced_at, owner_email, ...rest } = cr;
+      await addRecord({ ...rest, cloud_id, owner_email });
+      pulled++;
+    }
+
+    await reload();
+    const msg = `Sinkron selesai: ${unsynced.length} terkirim, ${pulled} diterima dari tim.`;
+    if (syncStatus) syncStatus.textContent = msg;
+    if (!silent) showToast(msg);
+  } catch (err) {
+    const msg = "Sinkron gagal: " + err.message;
+    if (syncStatus) syncStatus.textContent = msg;
+    if (!silent) showToast(msg);
+  }
+}
+
+document.getElementById("akun-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (akunBusy) return;
+  akunBusy = true;
+  const email = document.getElementById("akun-email").value.trim();
+  const password = document.getElementById("akun-password").value;
+  const status = document.getElementById("akun-status");
+  try {
+    status.textContent = "Memproses login...";
+    await cloud.login(email, password);
+    status.textContent = "";
+    showToast("Berhasil masuk.");
+  } catch (err) {
+    status.textContent = "Gagal masuk: " + err.message;
+  } finally {
+    akunBusy = false;
+  }
+});
+
+document.getElementById("akun-register-btn").addEventListener("click", async () => {
+  if (akunBusy) return;
+  akunBusy = true;
+  const email = document.getElementById("akun-email").value.trim();
+  const password = document.getElementById("akun-password").value;
+  const status = document.getElementById("akun-status");
+  if (!email || password.length < 6) {
+    status.textContent = "Isi email dan password (minimal 6 karakter) dulu.";
+    akunBusy = false;
+    return;
+  }
+  try {
+    status.textContent = "Mendaftarkan akun...";
+    await cloud.register(email, password);
+    status.textContent = "";
+    showToast("Akun berhasil dibuat & langsung masuk.");
+  } catch (err) {
+    status.textContent = "Gagal daftar: " + err.message;
+  } finally {
+    akunBusy = false;
+  }
+});
+
+document.getElementById("akun-logout-btn").addEventListener("click", async () => {
+  await cloud.logout();
+  showToast("Berhasil keluar. Data lokal tetap tersimpan di perangkat ini.");
+});
+
+document.getElementById("akun-sync-btn").addEventListener("click", () => syncAll(false));
+
+cloud.onAuthChange(async (user) => {
+  await renderAkunUi();
+  if (user) {
+    document.getElementById("akun-form")?.reset();
+    syncAll(true);
+  }
 });
 
 // ---------- Online/offline indicator ----------

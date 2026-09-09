@@ -2,7 +2,7 @@
 // sehingga input data tetap berfungsi tanpa koneksi internet.
 
 const DB_NAME = "ringing_burung_db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = "catatan";
 const SETTINGS_STORE = "pengaturan";
 
@@ -14,19 +14,39 @@ function openDb() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
+      const tx = e.target.transaction;
+      let store;
       if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: "id", autoIncrement: true });
+        store = db.createObjectStore(STORE, { keyPath: "id", autoIncrement: true });
         store.createIndex("nomor_cincin", "nomor_cincin", { unique: false });
         store.createIndex("nama_spesies", "nama_spesies", { unique: false });
         store.createIndex("tanggal", "tanggal", { unique: false });
         store.createIndex("pencincin_pengukur", "pencincin_pengukur", { unique: false });
+      } else {
+        store = tx.objectStore(STORE);
+      }
+      if (!store.indexNames.contains("cloud_id")) {
+        store.createIndex("cloud_id", "cloud_id", { unique: false });
       }
       if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
         db.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
       }
     };
-    req.onsuccess = (e) => resolve(e.target.result);
+    req.onsuccess = (e) => {
+      const db = e.target.result;
+      // Kalau tab lain minta upgrade versi (mis. setelah update aplikasi),
+      // tutup koneksi ini supaya tab itu tidak macet menunggu, alih-alih
+      // membiarkan tab lain hang tanpa batas waktu.
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = (e) => reject(e.target.error);
+    req.onblocked = () => {
+      console.warn("Pembukaan database tertunda -- tutup tab lain aplikasi ini lalu muat ulang.");
+    };
   });
   return dbPromise;
 }
@@ -103,6 +123,21 @@ export async function bulkAdd(records) {
       req.onerror = () => reject(req.error);
     });
     if (records.length === 0) resolve(0);
+  });
+}
+
+// ---------- Bantu sinkronisasi cloud ----------
+export async function getUnsyncedRecords() {
+  const all = await getAllRecords();
+  return all.filter((r) => !r.cloud_id);
+}
+
+export async function findByCloudId(cloudId) {
+  const store = await tx(STORE, "readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.index("cloud_id").get(cloudId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
 }
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v4";
+const CACHE_NAME = "ringing-burung-cache-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,6 +11,8 @@ const APP_SHELL = [
   "./js/utm.js",
   "./js/backup.js",
   "./js/charts.js",
+  "./js/cloud.js",
+  "./js/firebase-config.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];
