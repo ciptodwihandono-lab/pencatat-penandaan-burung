@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v3";
+const CACHE_NAME = "ringing-burung-cache-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,7 +11,8 @@ const APP_SHELL = [
   "./js/utm.js",
   "./js/backup.js",
   "./js/charts.js",
-  "./icons/icon.svg",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {
