@@ -1,21 +1,23 @@
-:root {
-  --green-900: #14532d;
-  --green-700: #166534;
-  --green-600: #16a34a;
-  --green-100: #dcfce7;
-  --amber-500: #d97706;
-  --red-600: #dc2626;
-  --bg: #f7faf7;
-  --surface: #ffffff;
-  --border: #d9e2d9;
-  --text: #1a2e1a;
-  --text-muted: #5b6b5b;
-  --shadow: 0 1px 2px rgba(20, 40, 20, 0.08), 0 4px 12px rgba(20, 40, 20, 0.06);
+﻿:root {
+  /* Skema warna mengikuti logo "Indonesian Bird Bander" — stempel hitam
+     di atas kertas krem. */
+  --ink-900: #161512;
+  --ink-700: #201e1a;
+  --ink-600: #35322a;
+  --cream-100: #ece4cd;
+  --amber-500: #a9762f;
+  --red-600: #a13a2e;
+  --bg: #f3efe2;
+  --surface: #faf8f1;
+  --border: #ddd5c0;
+  --text: #1a1815;
+  --text-muted: #6b6558;
+  --shadow: 0 1px 2px rgba(22, 21, 18, 0.08), 0 4px 12px rgba(22, 21, 18, 0.06);
   color-scheme: light;
 
   /* Palet grafik statistik (lihat js/charts.js) — sequential pakai warna
-     merek (hijau); kategorikal pakai palet 8-hue tervalidasi CVD-safe. */
-  --chart-sequential: var(--green-600);
+     merek (tinta gelap); kategorikal pakai palet 8-hue tervalidasi CVD-safe. */
+  --chart-sequential: var(--ink-600);
   --chart-series-1: #2a78d6; /* biru */
   --chart-series-2: #eb6834; /* oranye */
   --chart-series-3: #1baf7a; /* aqua */
@@ -28,14 +30,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #10160f;
-    --surface: #1a221a;
-    --border: #2c382c;
-    --text: #eaf3ea;
-    --text-muted: #9fb09f;
-    --green-100: #1f3a26;
+    --bg: #17150f;
+    --surface: #211f18;
+    --border: #3a362a;
+    --text: #f3efe2;
+    --text-muted: #b8b09c;
+    --cream-100: #3a3626;
+    --ink-600: #cfc7ae;
     color-scheme: dark;
 
+    --chart-sequential: var(--ink-600);
     --chart-series-1: #3987e5;
     --chart-series-2: #d95926;
     --chart-series-3: #199e70;
@@ -72,7 +76,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  background: var(--green-700);
+  background: var(--ink-700);
   color: #fff;
 }
 
@@ -92,7 +96,7 @@ body {
   font-size: 13px;
 }
 .nav-btn:hover { background: rgba(255,255,255,0.22); }
-.nav-btn.active { background: #fff; color: var(--green-700); font-weight: 600; }
+.nav-btn.active { background: #fff; color: var(--ink-700); font-weight: 600; }
 
 #app { max-width: 960px; margin: 0 auto; padding: 20px; }
 
@@ -136,7 +140,7 @@ body {
   gap: 12px;
   align-items: center;
 }
-.record-card:hover { border-color: var(--green-600); }
+.record-card:hover { border-color: var(--ink-600); }
 .record-main strong { font-size: 15px; }
 .record-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .badge {
@@ -145,8 +149,8 @@ body {
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 999px;
-  background: var(--green-100);
-  color: var(--green-900);
+  background: var(--cream-100);
+  color: var(--ink-900);
   white-space: nowrap;
 }
 .badge-recapture { background: #fef3c7; color: #92400e; }
@@ -168,7 +172,7 @@ body {
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--green-700);
+  color: var(--ink-700);
 }
 .form-grid {
   display: grid;
@@ -213,9 +217,9 @@ body {
   font-size: 14px;
   font-weight: 600;
 }
-.btn:hover { border-color: var(--green-600); }
-.btn-primary { background: var(--green-600); color: #fff; border-color: var(--green-600); }
-.btn-primary:hover { background: var(--green-700); }
+.btn:hover { border-color: var(--ink-600); }
+.btn-primary { background: var(--ink-600); color: #fff; border-color: var(--ink-600); }
+.btn-primary:hover { background: var(--ink-700); }
 .btn-danger { background: #fff; color: var(--red-600); border-color: var(--red-600); }
 .btn-danger:hover { background: var(--red-600); color: #fff; }
 .btn-ghost { background: transparent; }
@@ -246,7 +250,7 @@ body {
   padding: 16px;
   box-shadow: var(--shadow);
 }
-.stat-card .num { font-size: 28px; font-weight: 700; color: var(--green-700); }
+.stat-card .num { font-size: 28px; font-weight: 700; color: var(--ink-700); }
 .stat-card .label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 .stat-card.wide { grid-column: 1 / -1; }
 .stat-list { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
@@ -296,7 +300,7 @@ body {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--green-900);
+  background: var(--ink-900);
   color: #fff;
   padding: 10px 18px;
   border-radius: 8px;
