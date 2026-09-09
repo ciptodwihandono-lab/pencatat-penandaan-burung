@@ -514,6 +514,7 @@ async function renderAkunUi() {
     loggedIn.hidden = true;
   }
   document.getElementById("nav-admin").hidden = !cloud.isAdmin();
+  document.getElementById("header-logout-btn").hidden = !(cloud.isEnabled() && user);
 }
 
 // ---------- Gerbang login (wajib, tampil sebelum masuk ke aplikasi) ----------
@@ -631,6 +632,12 @@ async function syncAll(silent) {
 }
 
 document.getElementById("akun-logout-btn").addEventListener("click", async () => {
+  await cloud.logout();
+  showToast("Berhasil keluar.");
+});
+
+document.getElementById("header-logout-btn").addEventListener("click", async () => {
+  if (!confirm("Keluar dari akun ini?")) return;
   await cloud.logout();
   showToast("Berhasil keluar.");
 });
