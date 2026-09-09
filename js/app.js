@@ -48,6 +48,7 @@ async function reload() {
   state.records.sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "") || (b.id - a.id));
   renderList();
   renderSpeciesFilter();
+  renderLokasiFilter();
 }
 
 // ---------- List view ----------
@@ -59,12 +60,21 @@ function renderSpeciesFilter() {
   sel.value = current;
 }
 
+function renderLokasiFilter() {
+  const sel = document.getElementById("filter-lokasi");
+  const current = sel.value;
+  const lokasi = [...new Set(state.records.map((r) => r.kode_lokasi).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Semua lokasi</option>' + lokasi.map((l) => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("");
+  sel.value = current;
+}
+
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function matchesFilters(r, query, species) {
+function matchesFilters(r, query, species, lokasi) {
   if (species && r.nama_spesies !== species) return false;
+  if (lokasi && r.kode_lokasi !== lokasi) return false;
   if (!query) return true;
   const q = query.toLowerCase();
   return ["nomor_cincin", "nama_spesies", "kode_lokasi", "pencincin_pengukur", "catat"].some((k) => (r[k] || "").toLowerCase().includes(q));
@@ -78,10 +88,23 @@ function badgeFor(r) {
   return isRetrap(r) ? '<span class="badge badge-recapture">Retrap</span>' : '<span class="badge">Baru</span>';
 }
 
+function recordCardHtml(r) {
+  return `
+    <div class="record-card" data-id="${r.id}">
+      <div class="record-main">
+        <strong>${escapeHtml(r.nama_spesies || "(spesies belum diisi)")}</strong> — ${escapeHtml(r.nomor_cincin || "-")}
+        <div class="record-sub">${escapeHtml(r.tanggal || "-")} ${escapeHtml(r.waktu || "")} &middot; ${escapeHtml(r.kode_lokasi || "-")} &middot; ${escapeHtml(r.pencincin_pengukur || "-")}</div>
+      </div>
+      ${badgeFor(r)}
+    </div>`;
+}
+
 function renderList() {
   const query = document.getElementById("search-box").value.trim();
   const species = document.getElementById("filter-species").value;
-  const filtered = state.records.filter((r) => matchesFilters(r, query, species));
+  const lokasi = document.getElementById("filter-lokasi").value;
+  const groupByLokasi = document.getElementById("group-by-lokasi-toggle").checked;
+  const filtered = state.records.filter((r) => matchesFilters(r, query, species, lokasi));
   document.getElementById("record-count").textContent = `${filtered.length} dari ${state.records.length} catatan`;
 
   const container = document.getElementById("list-container");
@@ -89,18 +112,28 @@ function renderList() {
     container.innerHTML = '<p class="empty-state">Belum ada data yang cocok. Klik "+ Tambah Data" untuk mulai mencatat.</p>';
     return;
   }
-  container.innerHTML = filtered
-    .map(
-      (r) => `
-    <div class="record-card" data-id="${r.id}">
-      <div class="record-main">
-        <strong>${escapeHtml(r.nama_spesies || "(spesies belum diisi)")}</strong> — ${escapeHtml(r.nomor_cincin || "-")}
-        <div class="record-sub">${escapeHtml(r.tanggal || "-")} ${escapeHtml(r.waktu || "")} &middot; ${escapeHtml(r.kode_lokasi || "-")} &middot; ${escapeHtml(r.pencincin_pengukur || "-")}</div>
-      </div>
-      ${badgeFor(r)}
-    </div>`
-    )
-    .join("");
+
+  if (!groupByLokasi) {
+    container.innerHTML = filtered.map(recordCardHtml).join("");
+  } else {
+    const groups = new Map();
+    filtered.forEach((r) => {
+      const key = r.kode_lokasi || "(lokasi belum diisi)";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    });
+    const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b, "id"));
+    container.innerHTML = sortedKeys
+      .map((key) => {
+        const recs = groups.get(key);
+        return `<div class="lokasi-group">
+          <div class="lokasi-group-header"><span>${escapeHtml(key)}</span><span class="lokasi-group-count">${recs.length} catatan</span></div>
+          ${recs.map(recordCardHtml).join("")}
+        </div>`;
+      })
+      .join("");
+  }
+
   container.querySelectorAll(".record-card").forEach((card) => {
     card.addEventListener("click", () => openDetail(Number(card.dataset.id)));
   });
@@ -108,6 +141,8 @@ function renderList() {
 
 document.getElementById("search-box").addEventListener("input", renderList);
 document.getElementById("filter-species").addEventListener("change", renderList);
+document.getElementById("filter-lokasi").addEventListener("change", renderList);
+document.getElementById("group-by-lokasi-toggle").addEventListener("change", renderList);
 
 // ---------- Form view ----------
 function fieldHtml(f) {
@@ -343,19 +378,23 @@ function renderStats() {
   const container = document.getElementById("stats-container");
   const total = recs.length;
   const bySpecies = {};
+  const byLokasi = {};
   let baru = 0;
   let retrap = 0;
   const byRinger = {};
   recs.forEach((r) => {
     if (r.nama_spesies) bySpecies[r.nama_spesies] = (bySpecies[r.nama_spesies] || 0) + 1;
+    if (r.kode_lokasi) byLokasi[r.kode_lokasi] = (byLokasi[r.kode_lokasi] || 0) + 1;
     if (isRetrap(r)) retrap++;
     else baru++;
     if (r.pencincin_pengukur) byRinger[r.pencincin_pengukur] = (byRinger[r.pencincin_pengukur] || 0) + 1;
   });
   const topSpecies = Object.entries(bySpecies).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const topLokasi = Object.entries(byLokasi).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const topRinger = Object.entries(byRinger).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
   const speciesChartData = topCounts(recs, "nama_spesies", 10).sort((a, b) => a.value - b.value);
+  const lokasiChartData = topCounts(recs, "kode_lokasi", 10).sort((a, b) => a.value - b.value);
   const trendData = monthlyTrend(recs);
   const ageData = topCounts(recs, "umur", 6);
   const sexData = topCounts(recs, "kelamin", 6);
@@ -365,6 +404,7 @@ function renderStats() {
     <div class="stat-card"><div class="num">${baru}</div><div class="label">Tangkap Baru</div></div>
     <div class="stat-card"><div class="num">${retrap}</div><div class="label">Retrap</div></div>
     <div class="stat-card"><div class="num">${Object.keys(bySpecies).length}</div><div class="label">Jumlah Spesies</div></div>
+    <div class="stat-card"><div class="num">${Object.keys(byLokasi).length}</div><div class="label">Jumlah Lokasi</div></div>
 
     <div class="stat-card wide chart-card">
       <div class="label">Grafik: 10 Spesies Terbanyak</div>
@@ -376,6 +416,12 @@ function renderStats() {
       <div class="label">Grafik: Tren Penangkapan per Bulan</div>
       ${lineChartTrend(trendData)}
       <p class="chart-caption">Jumlah catatan penandaan per bulan, seluruh periode data.</p>
+    </div>
+
+    <div class="stat-card wide chart-card">
+      <div class="label">Grafik: 10 Lokasi Terbanyak</div>
+      ${barChartHorizontal(lokasiChartData)}
+      <p class="chart-caption">Jumlah catatan per kode lokasi (10 tertinggi).</p>
     </div>
 
     <div class="chart-row wide">
@@ -392,6 +438,10 @@ function renderStats() {
     <div class="stat-card wide">
       <div class="label">Tabel: Spesies Terbanyak</div>
       <ul class="stat-list">${topSpecies.map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${v}</strong></li>`).join("") || "<li>Belum ada data</li>"}</ul>
+    </div>
+    <div class="stat-card wide">
+      <div class="label">Tabel: Lokasi Terbanyak</div>
+      <ul class="stat-list">${topLokasi.map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${v}</strong></li>`).join("") || "<li>Belum ada data</li>"}</ul>
     </div>
     <div class="stat-card wide">
       <div class="label">Pencincin/Pengukur Paling Aktif</div>
