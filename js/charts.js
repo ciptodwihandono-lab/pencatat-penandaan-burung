@@ -173,10 +173,10 @@ export function topCounts(records, key, limit = 10) {
   return [...top.map(([label, value]) => ({ label, value })), { label: "Lainnya", value: restTotal }];
 }
 
-export function monthlyTrend(records) {
+export function monthlyTrend(records, dateKey = "tanggal") {
   const counts = {};
   records.forEach((r) => {
-    const t = (r.tanggal || "").trim();
+    const t = (r[dateKey] || "").trim();
     const m = /^(\d{4})-(\d{2})/.exec(t);
     if (!m) return;
     const key = `${m[1]}-${m[2]}`;

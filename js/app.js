@@ -715,6 +715,7 @@ document.getElementById("lognet-import-btn").addEventListener("click", async () 
 // ---------- Stats view ----------
 function renderStats() {
   const recs = state.records;
+  const lognetRecs = state.lognetRecords;
   const container = document.getElementById("stats-container");
   const total = recs.length;
   const bySpecies = {};
@@ -738,6 +739,24 @@ function renderStats() {
   const trendData = monthlyTrend(recs);
   const ageData = topCounts(recs, "umur", 6);
   const sexData = topCounts(recs, "kelamin", 6);
+
+  // ---------- Log Mist Net (Log Banding) ----------
+  const lognetTotal = lognetRecs.length;
+  const byNetKode = {};
+  const byNetLokasi = {};
+  let lognetRetrap = 0;
+  let lognetBurung = 0;
+  lognetRecs.forEach((r) => {
+    if (r.net_kode) byNetKode[r.net_kode] = (byNetKode[r.net_kode] || 0) + 1;
+    if (r.net_lokasi) byNetLokasi[r.net_lokasi] = (byNetLokasi[r.net_lokasi] || 0) + 1;
+    if (isRetrap({ retrap: r.net_retrap })) lognetRetrap++;
+    if (r.net_nama_burung) lognetBurung++;
+  });
+  const topNetLokasi = Object.entries(byNetLokasi).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  const netKodeChartData = topCounts(lognetRecs, "net_kode", 10).sort((a, b) => a.value - b.value);
+  const netSpeciesChartData = topCounts(lognetRecs, "net_nama_burung", 10).sort((a, b) => a.value - b.value);
+  const netTrendData = monthlyTrend(lognetRecs, "net_tanggal");
 
   container.innerHTML = `
     <div class="stat-card"><div class="num">${total}</div><div class="label">Total Catatan</div></div>
@@ -786,6 +805,36 @@ function renderStats() {
     <div class="stat-card wide">
       <div class="label">Pencincin/Pengukur Paling Aktif</div>
       <ul class="stat-list">${topRinger.map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${v}</strong></li>`).join("") || "<li>Belum ada data</li>"}</ul>
+    </div>
+
+    <div class="stat-card wide"><h3 class="stat-section-title">Statistik Log Banding (Mist Net)</h3></div>
+
+    <div class="stat-card"><div class="num">${lognetTotal}</div><div class="label">Total Log Net</div></div>
+    <div class="stat-card"><div class="num">${Object.keys(byNetKode).length}</div><div class="label">Jumlah Net (Usaha Tangkap)</div></div>
+    <div class="stat-card"><div class="num">${lognetBurung}</div><div class="label">Log dengan Burung Tertangkap</div></div>
+    <div class="stat-card"><div class="num">${lognetRetrap}</div><div class="label">Retrap (Log)</div></div>
+
+    <div class="stat-card wide chart-card">
+      <div class="label">Grafik: 10 Net Paling Sering Dicek</div>
+      ${barChartHorizontal(netKodeChartData)}
+      <p class="chart-caption">Jumlah kali cek per kode net (10 tertinggi) -- gambaran usaha tangkap (effort).</p>
+    </div>
+
+    <div class="stat-card wide chart-card">
+      <div class="label">Grafik: Tren Log Banding per Bulan</div>
+      ${lineChartTrend(netTrendData)}
+      <p class="chart-caption">Jumlah log mist net per bulan, seluruh periode data.</p>
+    </div>
+
+    <div class="stat-card wide chart-card">
+      <div class="label">Grafik: 10 Spesies Terbanyak dari Log Banding</div>
+      ${barChartHorizontal(netSpeciesChartData)}
+      <p class="chart-caption">Nama burung tercatat di Log Banding (10 tertinggi) -- bandingkan dengan grafik spesies tally sheet di atas.</p>
+    </div>
+
+    <div class="stat-card wide">
+      <div class="label">Tabel: Lokasi Log Banding Terbanyak</div>
+      <ul class="stat-list">${topNetLokasi.map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${v}</strong></li>`).join("") || "<li>Belum ada data</li>"}</ul>
     </div>
   `;
 }
