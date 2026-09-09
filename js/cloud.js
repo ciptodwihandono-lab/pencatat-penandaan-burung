@@ -26,6 +26,14 @@ function loadSdk() {
     ]);
     firebaseApp = initializeApp(firebaseConfig);
     authInstance = authMod.getAuth(firebaseApp);
+    try {
+      // Simpan sesi login secara lokal di perangkat (default sudah begini,
+      // tapi diset eksplisit supaya jelas): sekali login saat ada sinyal,
+      // sesi ini tetap "diingat" walau nanti dipakai tanpa internet.
+      await authMod.setPersistence(authInstance, authMod.browserLocalPersistence);
+    } catch (err) {
+      console.warn("Gagal set auth persistence:", err.message);
+    }
     dbInstance = storeMod.getFirestore(firebaseApp);
     try {
       await storeMod.enableIndexedDbPersistence(dbInstance);

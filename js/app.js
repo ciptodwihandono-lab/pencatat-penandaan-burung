@@ -499,27 +499,74 @@ let akunBusy = false;
 
 async function renderAkunUi() {
   const notConfigured = document.getElementById("akun-not-configured");
-  const loggedOut = document.getElementById("akun-logged-out");
   const loggedIn = document.getElementById("akun-logged-in");
-
-  if (!cloud.isEnabled()) {
-    notConfigured.hidden = false;
-    loggedOut.hidden = true;
-    loggedIn.hidden = true;
-    return;
-  }
-  notConfigured.hidden = true;
-
   const user = cloud.currentUser();
   if (user) {
-    loggedOut.hidden = true;
+    notConfigured.hidden = true;
     loggedIn.hidden = false;
     document.getElementById("akun-email-display").textContent = user.email;
   } else {
-    loggedOut.hidden = false;
+    notConfigured.hidden = !cloud.isEnabled() ? false : true;
     loggedIn.hidden = true;
   }
 }
+
+// ---------- Gerbang login (wajib, tampil sebelum masuk ke aplikasi) ----------
+function showApp() {
+  document.getElementById("auth-gate").hidden = true;
+  document.getElementById("app-header").hidden = false;
+  document.getElementById("app").hidden = false;
+}
+
+function showGate() {
+  document.getElementById("auth-gate").hidden = false;
+  document.getElementById("app-header").hidden = true;
+  document.getElementById("app").hidden = true;
+  document.getElementById("gate-checking").hidden = true;
+  document.getElementById("gate-login-form").hidden = false;
+  document.getElementById("gate-login-form").reset();
+  document.getElementById("gate-status").textContent = "";
+}
+
+document.getElementById("gate-login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (akunBusy) return;
+  akunBusy = true;
+  const email = document.getElementById("gate-email").value.trim();
+  const password = document.getElementById("gate-password").value;
+  const status = document.getElementById("gate-status");
+  try {
+    status.textContent = "Memproses login...";
+    await cloud.login(email, password);
+    status.textContent = "";
+  } catch (err) {
+    status.textContent = "Gagal masuk: " + err.message;
+  } finally {
+    akunBusy = false;
+  }
+});
+
+document.getElementById("gate-register-btn").addEventListener("click", async () => {
+  if (akunBusy) return;
+  akunBusy = true;
+  const email = document.getElementById("gate-email").value.trim();
+  const password = document.getElementById("gate-password").value;
+  const status = document.getElementById("gate-status");
+  if (!email || password.length < 6) {
+    status.textContent = "Isi email dan password (minimal 6 karakter) dulu.";
+    akunBusy = false;
+    return;
+  }
+  try {
+    status.textContent = "Mendaftarkan akun...";
+    await cloud.register(email, password);
+    status.textContent = "";
+  } catch (err) {
+    status.textContent = "Gagal daftar: " + err.message;
+  } finally {
+    akunBusy = false;
+  }
+});
 
 async function syncAll(silent) {
   if (!cloud.currentUser()) return;
@@ -554,60 +601,26 @@ async function syncAll(silent) {
   }
 }
 
-document.getElementById("akun-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (akunBusy) return;
-  akunBusy = true;
-  const email = document.getElementById("akun-email").value.trim();
-  const password = document.getElementById("akun-password").value;
-  const status = document.getElementById("akun-status");
-  try {
-    status.textContent = "Memproses login...";
-    await cloud.login(email, password);
-    status.textContent = "";
-    showToast("Berhasil masuk.");
-  } catch (err) {
-    status.textContent = "Gagal masuk: " + err.message;
-  } finally {
-    akunBusy = false;
-  }
-});
-
-document.getElementById("akun-register-btn").addEventListener("click", async () => {
-  if (akunBusy) return;
-  akunBusy = true;
-  const email = document.getElementById("akun-email").value.trim();
-  const password = document.getElementById("akun-password").value;
-  const status = document.getElementById("akun-status");
-  if (!email || password.length < 6) {
-    status.textContent = "Isi email dan password (minimal 6 karakter) dulu.";
-    akunBusy = false;
-    return;
-  }
-  try {
-    status.textContent = "Mendaftarkan akun...";
-    await cloud.register(email, password);
-    status.textContent = "";
-    showToast("Akun berhasil dibuat & langsung masuk.");
-  } catch (err) {
-    status.textContent = "Gagal daftar: " + err.message;
-  } finally {
-    akunBusy = false;
-  }
-});
-
 document.getElementById("akun-logout-btn").addEventListener("click", async () => {
   await cloud.logout();
-  showToast("Berhasil keluar. Data lokal tetap tersimpan di perangkat ini.");
+  showToast("Berhasil keluar.");
 });
 
 document.getElementById("akun-sync-btn").addEventListener("click", () => syncAll(false));
 
 cloud.onAuthChange(async (user) => {
   await renderAkunUi();
+  if (!cloud.isEnabled()) {
+    // Fitur cloud belum dikonfigurasi -- jangan kunci pengguna, langsung
+    // masuk ke aplikasi seperti mode offline-lokal biasa.
+    showApp();
+    return;
+  }
   if (user) {
-    document.getElementById("akun-form")?.reset();
+    showApp();
     syncAll(true);
+  } else {
+    showGate();
   }
 });
 

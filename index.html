@@ -15,7 +15,36 @@
   Mode offline — data tetap tersimpan di perangkat ini.
 </div>
 
-<header class="app-header">
+<div id="auth-gate" class="auth-gate">
+  <div class="auth-gate-card">
+    <img src="icons/icon-192.png" alt="" class="auth-gate-logo" />
+    <h1>Tally Sheet Penandaan Burung</h1>
+    <p class="subtitle">Masuk untuk mulai mencatat data</p>
+
+    <p id="gate-checking" class="hint">Memeriksa status login&hellip;</p>
+
+    <form id="gate-login-form" class="auth-gate-form" hidden>
+      <div class="field">
+        <label for="gate-email">Email</label>
+        <input type="email" id="gate-email" autocomplete="email" required />
+      </div>
+      <div class="field">
+        <label for="gate-password">Password</label>
+        <input type="password" id="gate-password" autocomplete="current-password" required minlength="6" />
+      </div>
+      <button type="submit" id="gate-login-btn" class="btn btn-primary">Masuk</button>
+      <p id="gate-status" class="hint"></p>
+      <hr class="auth-gate-divider" />
+      <p class="hint">Belum punya akun?</p>
+      <button type="button" id="gate-register-btn" class="btn">Daftar Akun Baru</button>
+      <p class="hint auth-gate-note">Login pertama kali butuh koneksi internet. Setelah itu, sesi login akan diingat perangkat ini sehingga tetap bisa dipakai tanpa sinyal di lapangan.</p>
+    </form>
+
+    <p id="gate-not-configured" class="hint" hidden>Fitur login belum dikonfigurasi untuk aplikasi ini.</p>
+  </div>
+</div>
+
+<header class="app-header" id="app-header" hidden>
   <div class="brand">
     <img src="icons/icon-192.png" alt="" class="brand-icon" />
     <div>
@@ -32,7 +61,7 @@
   </nav>
 </header>
 
-<main id="app">
+<main id="app" hidden>
 
   <section id="view-list" class="view">
     <div class="toolbar">
@@ -116,27 +145,6 @@
     <h2>Akun &amp; Sinkronisasi Tim</h2>
     <div id="akun-not-configured" class="tools-card" hidden>
       <p>Fitur login/sinkronisasi cloud belum diaktifkan untuk aplikasi ini. Aplikasi tetap berfungsi penuh secara offline-lokal seperti biasa.</p>
-    </div>
-
-    <div id="akun-logged-out" class="tools-card" hidden>
-      <p class="hint">Login opsional &mdash; tanpa login, data tetap tersimpan lokal di perangkat ini seperti biasa. Login untuk menggabungkan data Anda dengan data tim (semua yang login akan melihat data yang sama).</p>
-      <form id="akun-form">
-        <div class="form-grid">
-          <div class="field">
-            <label for="akun-email">Email</label>
-            <input type="email" id="akun-email" autocomplete="email" required />
-          </div>
-          <div class="field">
-            <label for="akun-password">Password</label>
-            <input type="password" id="akun-password" autocomplete="current-password" required minlength="6" />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button type="submit" id="akun-login-btn" class="btn btn-primary">Masuk</button>
-          <button type="button" id="akun-register-btn" class="btn">Daftar Akun Baru</button>
-        </div>
-      </form>
-      <p id="akun-status" class="hint"></p>
     </div>
 
     <div id="akun-logged-in" class="tools-card" hidden>

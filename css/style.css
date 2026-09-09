@@ -290,6 +290,32 @@ body {
 .tools-card h3 { margin-top: 0; }
 .tools-card-danger { border-color: var(--red-600); }
 .hint { font-size: 12px; color: var(--text-muted); }
+/* ---------- Gerbang login (tampil sebelum masuk ke aplikasi) ---------- */
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+.auth-gate-card {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+.auth-gate-logo { width: 72px; height: 72px; margin-bottom: 12px; }
+.auth-gate-card h1 { font-size: 20px; margin: 0 0 4px; }
+.auth-gate-card .subtitle { color: var(--text-muted); margin: 0 0 20px; }
+.auth-gate-form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+.auth-gate-form .field { margin-bottom: 0; }
+.auth-gate-form .btn { width: 100%; }
+.auth-gate-divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+.auth-gate-note { font-size: 11px; }
+
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
 .checkbox-row input { width: 16px; height: 16px; }
 .utm-preview { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
