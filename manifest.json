@@ -1,6 +1,6 @@
 {
-  "name": "Pencatat Penandaan Burung",
-  "short_name": "Ringing Burung",
+  "name": "Tally Sheet Penandaan Burung",
+  "short_name": "Tally Sheet Burung",
   "description": "Aplikasi pencatatan data penandaan (ringing) burung untuk kegiatan ilmiah, mendukung input online maupun offline.",
   "start_url": "./index.html",
   "scope": "./",

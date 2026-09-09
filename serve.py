@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Server statis lokal untuk menjalankan aplikasi Pencatat Penandaan Burung.
+"""Server statis lokal untuk menjalankan aplikasi Tally Sheet Penandaan Burung.
 Pakai: python serve.py [port]
 """
 import http.server
