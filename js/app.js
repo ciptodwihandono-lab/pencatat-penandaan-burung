@@ -26,6 +26,65 @@ function showToast(msg) {
   showToast._t = setTimeout(() => (toast.hidden = true), 3200);
 }
 
+// ---------- Draft form otomatis (supaya isian tidak hilang kalau ke-refresh
+// di lapangan, baik online maupun offline -- pakai localStorage, tidak
+// butuh koneksi internet sama sekali) ----------
+const DRAFT_PREFIX = "draft_v1_";
+
+function draftKey(formName, id) {
+  return `${DRAFT_PREFIX}${formName}_${id || "new"}`;
+}
+
+function saveDraft(formName, id, fields) {
+  try {
+    const data = {};
+    fields.forEach((f) => {
+      const el = document.getElementById(`f_${f.key}`);
+      if (el) data[f.key] = el.value;
+    });
+    localStorage.setItem(draftKey(formName, id), JSON.stringify(data));
+  } catch (err) {
+    // localStorage penuh atau nonaktif -- draft otomatis dilewati, tidak fatal.
+  }
+}
+
+function loadDraft(formName, id) {
+  try {
+    const raw = localStorage.getItem(draftKey(formName, id));
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function clearDraft(formName, id) {
+  // Batalkan juga autosave yang masih tertunda (debounce) supaya draft yang
+  // baru dihapus tidak "hidup lagi" kalau user langsung Simpan/Batal tak lama
+  // setelah ketikan terakhir.
+  clearTimeout(draftAutosaveTimer);
+  try {
+    localStorage.removeItem(draftKey(formName, id));
+  } catch (err) {
+    // abaikan
+  }
+}
+
+function applyDraftIfAny(formName, id, fields) {
+  const draft = loadDraft(formName, id);
+  if (!draft) return;
+  fields.forEach((f) => {
+    const el = document.getElementById(`f_${f.key}`);
+    if (el && draft[f.key] !== undefined) el.value = draft[f.key];
+  });
+  showToast("Draft yang belum tersimpan berhasil dipulihkan.");
+}
+
+let draftAutosaveTimer = null;
+function scheduleDraftSave(formName, id, fields) {
+  clearTimeout(draftAutosaveTimer);
+  draftAutosaveTimer = setTimeout(() => saveDraft(formName, id, fields), 400);
+}
+
 function setView(view) {
   state.view = view;
   document.querySelectorAll(".view").forEach((el) => (el.hidden = true));
@@ -204,8 +263,16 @@ function buildForm() {
 
   document.getElementById("gps-btn").addEventListener("click", fetchGps);
   document.getElementById("f_foto").addEventListener("change", handlePhotoInput);
-  document.getElementById("form-cancel-btn").addEventListener("click", () => setView("list"));
-  form.addEventListener("submit", handleFormSubmit);
+  document.getElementById("form-cancel-btn").addEventListener("click", () => {
+    clearDraft("record", state.editingId);
+    setView("list");
+  });
+  // Pakai onsubmit/oninput (bukan addEventListener) karena elemen <form> ini
+  // sendiri tidak diganti tiap buildForm() dipanggil -- innerHTML-nya saja
+  // yang diganti -- jadi addEventListener akan menumpuk listener lama tiap
+  // kali form dibuka ulang (submit/draft-save jadi terpicu berkali-kali).
+  form.onsubmit = handleFormSubmit;
+  form.oninput = () => scheduleDraftSave("record", state.editingId, FIELDS);
   document.getElementById("f_latitude").addEventListener("input", updateUtmPreview);
   document.getElementById("f_longitude").addEventListener("input", updateUtmPreview);
 }
@@ -269,12 +336,15 @@ function openForm(id) {
         img.src = rec.foto;
         img.hidden = false;
       }
+      applyDraftIfAny("record", id, FIELDS);
       updateUtmPreview();
     });
   } else {
     const today = new Date();
     document.getElementById("f_tanggal").value = today.toISOString().slice(0, 10);
     document.getElementById("f_waktu").value = today.toTimeString().slice(0, 5);
+    applyDraftIfAny("record", id, FIELDS);
+    updateUtmPreview();
   }
   setView("form");
 }
@@ -322,6 +392,7 @@ async function handleFormSubmit(e) {
     showToast("Gagal menyimpan: " + err.message);
     return;
   }
+  clearDraft("record", state.editingId);
   await reload();
   setView("list");
   maybeAutoBackup();
@@ -440,9 +511,14 @@ function buildLognetForm() {
       <button type="submit" class="btn btn-primary">Simpan Log</button>
       <button type="button" id="lognet-form-cancel-btn" class="btn btn-ghost">Batal</button>
     </div>`;
-  document.getElementById("lognet-form-cancel-btn").addEventListener("click", () => setView("lognet"));
+  document.getElementById("lognet-form-cancel-btn").addEventListener("click", () => {
+    clearDraft("lognet", state.lognetEditingId);
+    setView("lognet");
+  });
   document.getElementById("lognet-gps-btn").addEventListener("click", fetchLognetGps);
-  form.addEventListener("submit", handleLognetFormSubmit);
+  // onsubmit/oninput, bukan addEventListener -- lihat catatan yang sama di buildForm().
+  form.onsubmit = handleLognetFormSubmit;
+  form.oninput = () => scheduleDraftSave("lognet", state.lognetEditingId, LOGNET_FIELDS);
 }
 
 function fetchLognetGps() {
@@ -473,11 +549,13 @@ function openLognetForm(id) {
         const el = document.getElementById(`f_${f.key}`);
         if (el && rec[f.key] !== undefined) el.value = rec[f.key];
       });
+      applyDraftIfAny("lognet", id, LOGNET_FIELDS);
     });
   } else {
     const today = new Date();
     document.getElementById("f_net_tanggal").value = today.toISOString().slice(0, 10);
     document.getElementById("f_net_waktu").value = today.toTimeString().slice(0, 5);
+    applyDraftIfAny("lognet", id, LOGNET_FIELDS);
   }
   setView("lognet-form");
 }
@@ -515,6 +593,7 @@ async function handleLognetFormSubmit(e) {
     showToast("Gagal menyimpan: " + err.message);
     return;
   }
+  clearDraft("lognet", state.lognetEditingId);
   await reloadLognet();
   setView("lognet");
 }
