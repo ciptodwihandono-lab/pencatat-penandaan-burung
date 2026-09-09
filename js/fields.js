@@ -13,6 +13,12 @@ export const STATUS_SUGGESTIONS = ["N", "R", "C", "DEAD"];
 // Setiap field: key (nama properti record), label tampilan, tipe input, dan section form.
 // type "suggest" = input teks bebas + datalist saran (tidak memaksa nilai tertentu).
 export const FIELDS = [
+  // Info Kegiatan — header tally sheet (INDONESIAN BIRD BANDING SCHEME:
+  // FIELD DATA SHEET / BANDER / LOCATION / DATE), diisi sekali per sesi
+  // pencatatan di kertas, di sini diisi per catatan supaya konsisten.
+  { key: "bander", label: "Bander (Penanggung Jawab Kegiatan)", type: "text", section: "info", required: true },
+  { key: "lokasi_nama", label: "Location (Nama Lokasi Kegiatan)", type: "text", section: "info", required: true },
+
   // Pencatatan (baris paling kiri pada tally sheet)
   { key: "catat", label: "Catat (Pencatat)", type: "text", section: "pencatatan" },
   { key: "pencincin_pengukur", label: "Pencincin / Pengukur (Bander/Measurer)", type: "text", section: "pencatatan", required: true },
@@ -32,9 +38,10 @@ export const FIELDS = [
   { key: "kelamin", label: "Sex (Jenis Kelamin)", type: "suggest", options: SEX_SUGGESTIONS, section: "biologi" },
   { key: "cara_kelamin", label: "How Sexed (Cara Penentuan Kelamin)", type: "text", section: "biologi" },
 
+  { key: "tanggal", label: "Date (Tanggal)", type: "date", section: "info", required: true },
+
   // Lokasi & waktu (sesuai kolom tally sheet)
   { key: "kode_lokasi", label: "Location Code (Kode Lokasi)", type: "text", section: "waktu", required: true },
-  { key: "tanggal", label: "Date (Tanggal)", type: "date", section: "waktu", required: true },
   { key: "waktu", label: "Time (Jam)", type: "time", section: "waktu" },
 
   // Penangkapan
@@ -68,11 +75,12 @@ export const FIELDS = [
 ];
 
 export const SECTIONS = [
+  { key: "info", title: "Info Kegiatan (Header Tally Sheet)" },
   { key: "pencatatan", title: "Pencatatan" },
   { key: "cincin", title: "Cincin & Retrap" },
   { key: "spesies", title: "Spesies" },
   { key: "biologi", title: "Umur & Jenis Kelamin" },
-  { key: "waktu", title: "Lokasi & Waktu (Tally Sheet)" },
+  { key: "waktu", title: "Kode Lokasi & Waktu" },
   { key: "tangkap", title: "Penangkapan" },
   { key: "gps", title: "Koordinat GPS (untuk Google Earth & UTM Geo Map)" },
   { key: "berat", title: "Berat (gram)" },
