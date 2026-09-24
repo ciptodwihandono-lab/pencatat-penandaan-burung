@@ -333,10 +333,6 @@ function buildForm() {
   const sectionsHtml = SECTIONS.map((sec) => {
     const fields = FIELDS.filter((f) => f.section === sec.key).map(fieldHtml).join("");
     let extra = "";
-    if (sec.key === "gps") {
-      extra = `<div class="field"><label>&nbsp;</label><button type="button" id="gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
-        <div class="field full"><label>Koordinat UTM (otomatis, untuk UTM Geo Map)</label><div id="utm-preview" class="utm-preview">Isi latitude/longitude untuk melihat koordinat UTM.</div></div>`;
-    }
     if (sec.key === "tambahan") {
       extra = `<div class="field full"><label>Lampirkan Foto (opsional, tambahan digital selain kolom "Photo")</label><input type="file" id="f_foto" accept="image/*" capture="environment" /><img id="photo-preview" class="photo-preview" hidden /></div>`;
     }
@@ -349,7 +345,6 @@ function buildForm() {
       <button type="button" id="form-cancel-btn" class="btn btn-ghost">Batal</button>
     </div>`;
 
-  document.getElementById("gps-btn").addEventListener("click", fetchGps);
   document.getElementById("f_foto").addEventListener("change", handlePhotoInput);
   document.getElementById("form-cancel-btn").addEventListener("click", () => {
     clearDraft("record", state.editingId);
@@ -361,35 +356,6 @@ function buildForm() {
   // kali form dibuka ulang (submit/draft-save jadi terpicu berkali-kali).
   form.onsubmit = handleFormSubmit;
   form.oninput = () => scheduleDraftSave("record", state.editingId, FIELDS);
-  document.getElementById("f_latitude").addEventListener("input", updateUtmPreview);
-  document.getElementById("f_longitude").addEventListener("input", updateUtmPreview);
-}
-
-function updateUtmPreview() {
-  const lat = document.getElementById("f_latitude").value;
-  const lon = document.getElementById("f_longitude").value;
-  const preview = document.getElementById("utm-preview");
-  const utm = latLonToUtm(lat, lon);
-  preview.textContent = utm ? formatUtm(utm) : "Isi latitude/longitude untuk melihat koordinat UTM.";
-}
-
-function fetchGps() {
-  if (!navigator.geolocation) {
-    showToast("Perangkat ini tidak mendukung GPS.");
-    return;
-  }
-  showToast("Mengambil lokasi GPS...");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      document.getElementById("f_latitude").value = pos.coords.latitude.toFixed(6);
-      document.getElementById("f_longitude").value = pos.coords.longitude.toFixed(6);
-      if (pos.coords.altitude) document.getElementById("f_ketinggian_m").value = Math.round(pos.coords.altitude);
-      updateUtmPreview();
-      showToast("Lokasi GPS berhasil diambil.");
-    },
-    (err) => showToast("Gagal mengambil GPS: " + err.message),
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
 }
 
 // Dipakai oleh tombol "Pilih di Peta" di form catatan maupun form Log Mist
@@ -438,14 +404,12 @@ function openForm(id) {
         img.hidden = false;
       }
       applyDraftIfAny("record", id, FIELDS);
-      updateUtmPreview();
     });
   } else {
     const today = new Date();
     document.getElementById("f_tanggal").value = today.toISOString().slice(0, 10);
     document.getElementById("f_waktu").value = today.toTimeString().slice(0, 5);
     applyDraftIfAny("record", id, FIELDS);
-    updateUtmPreview();
   }
   setView("form");
 }

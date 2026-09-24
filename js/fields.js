@@ -83,7 +83,6 @@ export const SECTIONS = [
   { key: "biologi", title: "Umur & Jenis Kelamin" },
   { key: "waktu", title: "Kode Lokasi & Waktu" },
   { key: "tangkap", title: "Penangkapan" },
-  { key: "gps", title: "Koordinat GPS (untuk Google Earth & UTM Geo Map)" },
   { key: "berat", title: "Berat (gram)" },
   { key: "morfometri", title: "Morfometri (mm)" },
   { key: "tambahan", title: "Brood Patch, Moult, Foto & Catatan" },
