@@ -107,6 +107,82 @@ function setView(view) {
   const navKey = view.startsWith("lognet") ? "lognet" : view;
   document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === navKey));
   window.scrollTo({ top: 0, behavior: "smooth" });
+  saveLastView();
+}
+
+// ---------- Ingat halaman terakhir (supaya refresh/reload tidak selalu
+// balik ke Daftar Data -- terutama penting saat sedang mengisi form di
+// lapangan dan sinyal/baterai bikin halaman ke-reload tanpa sengaja) ----------
+const LAST_VIEW_KEY = "last_view_v1";
+
+function saveLastView() {
+  try {
+    localStorage.setItem(
+      LAST_VIEW_KEY,
+      JSON.stringify({
+        view: state.view,
+        editingId: state.editingId,
+        detailId: state.detailId,
+        lognetEditingId: state.lognetEditingId,
+        lognetDetailId: state.lognetDetailId,
+      })
+    );
+  } catch (err) {
+    // localStorage penuh atau nonaktif -- lewati, tidak fatal.
+  }
+}
+
+function restoreLastView() {
+  let last;
+  try {
+    const raw = localStorage.getItem(LAST_VIEW_KEY);
+    last = raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    last = null;
+  }
+  if (!last || last.view === "list") return;
+
+  switch (last.view) {
+    case "form":
+      openForm(last.editingId ?? null);
+      break;
+    case "detail":
+      if (last.detailId != null) openDetail(last.detailId);
+      break;
+    case "lognet-form":
+      openLognetForm(last.lognetEditingId ?? null);
+      break;
+    case "lognet-detail":
+      if (last.lognetDetailId != null) openLognetDetail(last.lognetDetailId);
+      break;
+    case "lognet":
+      setView("lognet");
+      break;
+    case "stats":
+      setView("stats");
+      renderStats();
+      break;
+    case "tools":
+      setView("tools");
+      refreshBackupUi();
+      break;
+    case "akun":
+      setView("akun");
+      renderAkunUi();
+      break;
+    case "admin":
+      // Hanya pulihkan kalau tombol nav Admin sedang tidak disembunyikan
+      // (yaitu akun ini memang admin) -- kalau tidak, biarkan di Daftar Data.
+      if (!document.getElementById("nav-admin").hidden) {
+        setView("admin");
+        renderAdminUi();
+      }
+      break;
+    case "peta":
+      initPhotoMapView();
+      setView("peta");
+      break;
+  }
 }
 
 document.getElementById("brand-home-btn").addEventListener("click", () => setView("list"));
@@ -978,10 +1054,18 @@ async function renderAkunUi() {
 }
 
 // ---------- Gerbang login (wajib, tampil sebelum masuk ke aplikasi) ----------
+let lastViewRestored = false;
 function showApp() {
   document.getElementById("auth-gate").hidden = true;
   document.getElementById("app-header").hidden = false;
   document.getElementById("app").hidden = false;
+  // Sekali per sesi -- auth state bisa berubah lagi nanti (mis. refresh
+  // token), tapi kita tidak mau menimpa halaman yang sedang dibuka user
+  // saat itu tiap kali showApp() dipanggil ulang.
+  if (!lastViewRestored) {
+    lastViewRestored = true;
+    restoreLastView();
+  }
 }
 
 function showGate() {
