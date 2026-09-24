@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v23";
+const CACHE_NAME = "ringing-burung-cache-v24";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -30,11 +30,23 @@ const APP_SHELL = [
 // cache: "reload" -- lewati cache HTTP browser (GitHub Pages: max-age=600) saat
 // mengisi cache app shell, supaya file JS yang saling bergantung (mis. db.js
 // dan photomap.js) tidak tercampur versi lama dan baru.
+// SDK Firebase disimpan saat install (bukan hanya saat dipakai) supaya pasti
+// sudah ada di cache sebelum pengguna berangkat ke lapangan tanpa sinyal.
+// Versi ini harus sama dengan SDK_VERSION di js/cloud.js. Best-effort: kalau
+// gagal diunduh, install tetap lanjut (SDK akan di-cache saat pertama dipakai).
+const FIREBASE_SDK_URLS = ["firebase-app.js", "firebase-auth.js", "firebase-firestore.js"].map(
+  (f) => `https://www.gstatic.com/firebasejs/10.14.1/${f}`
+);
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => Promise.all(APP_SHELL.map((url) => cache.add(new Request(url, { cache: "reload" })))))
+      .then((cache) =>
+        Promise.all(APP_SHELL.map((url) => cache.add(new Request(url, { cache: "reload" })))).then(() =>
+          Promise.all(FIREBASE_SDK_URLS.map((url) => cache.add(new Request(url, { mode: "cors" })).catch(() => {})))
+        )
+      )
       .then(() => self.skipWaiting())
   );
 });
@@ -68,8 +80,16 @@ self.addEventListener("fetch", (event) => {
         cache.match(event.request).then(
           (cached) =>
             cached ||
-            fetch(event.request).then((response) => {
-              if (response.ok) cache.put(event.request, response.clone());
+            fetch(event.request).then(async (response) => {
+              // Tunggu put selesai (jangan fire-and-forget) supaya pasti tersimpan
+              // sebelum service worker dihentikan browser.
+              if (response.ok) {
+                try {
+                  await cache.put(event.request, response.clone());
+                } catch (err) {
+                  // gagal simpan cache -- tidak fatal, respons tetap dikirim
+                }
+              }
               return response;
             })
         )
