@@ -6,6 +6,8 @@ import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
 import { barChartHorizontal, lineChartTrend, barChartCategorical, topCounts, monthlyTrend } from "./charts.js";
 import * as cloud from "./cloud.js";
+import { initPhotoMapView } from "./photomap.js";
+import { openMapPicker, initMapPicker } from "./mappicker.js";
 
 const state = {
   view: "list",
@@ -99,6 +101,7 @@ function setView(view) {
     lognet: "view-lognet",
     "lognet-form": "view-lognet-form",
     "lognet-detail": "view-lognet-detail",
+    peta: "view-peta",
   };
   document.getElementById(map[view]).hidden = false;
   const navKey = view.startsWith("lognet") ? "lognet" : view;
@@ -123,6 +126,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     if (btn.dataset.view === "akun") renderAkunUi();
     if (btn.dataset.view === "admin") renderAdminUi();
     if (btn.dataset.view === "lognet") reloadLognet();
+    if (btn.dataset.view === "peta") initPhotoMapView();
   });
 });
 
@@ -255,6 +259,7 @@ function buildForm() {
     let extra = "";
     if (sec.key === "gps") {
       extra = `<div class="field"><label>&nbsp;</label><button type="button" id="gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
+        <div class="field"><label>&nbsp;</label><button type="button" id="map-pick-btn" class="btn">🗺️ Pilih di Peta</button></div>
         <div class="field full"><label>Koordinat UTM (otomatis, untuk UTM Geo Map)</label><div id="utm-preview" class="utm-preview">Isi latitude/longitude untuk melihat koordinat UTM.</div></div>`;
     }
     if (sec.key === "tambahan") {
@@ -270,6 +275,7 @@ function buildForm() {
     </div>`;
 
   document.getElementById("gps-btn").addEventListener("click", fetchGps);
+  document.getElementById("map-pick-btn").addEventListener("click", () => pickFromMap("f_latitude", "f_longitude", updateUtmPreview));
   document.getElementById("f_foto").addEventListener("change", handlePhotoInput);
   document.getElementById("form-cancel-btn").addEventListener("click", () => {
     clearDraft("record", state.editingId);
@@ -310,6 +316,19 @@ function fetchGps() {
     (err) => showToast("Gagal mengambil GPS: " + err.message),
     { enableHighAccuracy: true, timeout: 10000 }
   );
+}
+
+// Dipakai oleh tombol "Pilih di Peta" di form catatan maupun form Log Mist
+// Net -- buka modal peta Esri, isi field lat/lon kalau pengguna memilih titik.
+async function pickFromMap(latFieldId, lonFieldId, onFilled) {
+  const latField = document.getElementById(latFieldId);
+  const lonField = document.getElementById(lonFieldId);
+  const result = await openMapPicker(latField.value, lonField.value);
+  if (!result) return;
+  latField.value = result.lat.toFixed(6);
+  lonField.value = result.lng.toFixed(6);
+  onFilled();
+  showToast("Koordinat dipilih dari peta.");
 }
 
 function handlePhotoInput(e) {
@@ -513,6 +532,7 @@ function buildLognetForm() {
   const form = document.getElementById("lognet-form");
   const fields = LOGNET_FIELDS.map(fieldHtml).join("");
   const gpsExtra = `<div class="field"><label>&nbsp;</label><button type="button" id="lognet-gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
+    <div class="field"><label>&nbsp;</label><button type="button" id="lognet-map-pick-btn" class="btn">🗺️ Pilih di Peta</button></div>
     <div class="field full"><label>Koordinat UTM (otomatis, untuk UTM Geo Map)</label><div id="lognet-utm-preview" class="utm-preview">Isi latitude/longitude untuk melihat koordinat UTM.</div></div>
     <div class="field full"><a id="lognet-gmaps-link" class="btn" href="#" target="_blank" rel="noopener" hidden>🗺️ Buka di Google Maps</a></div>`;
   form.innerHTML =
@@ -526,6 +546,7 @@ function buildLognetForm() {
     setView("lognet");
   });
   document.getElementById("lognet-gps-btn").addEventListener("click", fetchLognetGps);
+  document.getElementById("lognet-map-pick-btn").addEventListener("click", () => pickFromMap("f_net_latitude", "f_net_longitude", updateLognetUtmPreview));
   document.getElementById("f_net_latitude").addEventListener("input", updateLognetUtmPreview);
   document.getElementById("f_net_longitude").addEventListener("input", updateLognetUtmPreview);
   // onsubmit/oninput, bukan addEventListener -- lihat catatan yang sama di buildForm().
@@ -1248,3 +1269,4 @@ if ("serviceWorker" in navigator) {
 // ---------- Init ----------
 reload();
 reloadLognet();
+initMapPicker();

@@ -8,6 +8,7 @@
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/icon-v2-192.png" type="image/png" />
 <link rel="apple-touch-icon" href="icons/icon-v2-192.png" />
+<link rel="stylesheet" href="js/vendor/leaflet/leaflet.css" />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -67,6 +68,7 @@
     <button data-view="list" class="nav-btn active">Daftar Data</button>
     <button data-view="form" class="nav-btn">+ Tambah Data</button>
     <button data-view="lognet" class="nav-btn">Log Banding</button>
+    <button data-view="peta" class="nav-btn">Peta</button>
     <button data-view="stats" class="nav-btn">Statistik</button>
     <button data-view="tools" class="nav-btn">Ekspor / Impor</button>
     <button data-view="akun" class="nav-btn" id="nav-akun">Akun</button>
@@ -132,6 +134,17 @@
       <button id="lognet-detail-back-btn" class="btn btn-ghost">&larr; Kembali</button>
     </div>
     <div id="lognet-detail-container"></div>
+  </section>
+
+  <section id="view-peta" class="view" hidden>
+    <h2>Peta Lokasi Foto</h2>
+    <p class="hint">Unggah foto (JPEG) yang punya data lokasi GPS di metadatanya (mis. foto survei KEHATI dari HP/kamera dengan GPS aktif). Lokasinya akan otomatis dibaca dan ditandai di peta. Foto tersimpan di perangkat ini.</p>
+    <div class="form-actions">
+      <label for="peta-file-input" class="btn btn-primary">+ Unggah Foto</label>
+      <input type="file" id="peta-file-input" accept="image/jpeg" multiple hidden />
+    </div>
+    <p id="peta-upload-status" class="hint"></p>
+    <div id="peta-map" class="peta-map"></div>
   </section>
 
   <section id="view-stats" class="view" hidden>
@@ -245,6 +258,23 @@
 
 <div id="toast" class="toast" hidden></div>
 
+<div id="map-picker-modal" class="modal-overlay" hidden>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Pilih Koordinat di Peta</h3>
+      <button type="button" id="map-picker-close-btn" class="btn btn-ghost btn-small">✕</button>
+    </div>
+    <div id="map-picker-map" class="map-picker-map"></div>
+    <p class="hint">Ketuk/klik peta (citra satelit Esri) untuk menandai titik pemasangan jaring.</p>
+    <div id="map-picker-coord" class="utm-preview">Belum ada titik dipilih.</div>
+    <div class="modal-actions">
+      <button type="button" id="map-picker-cancel-btn" class="btn btn-ghost">Batal</button>
+      <button type="button" id="map-picker-use-btn" class="btn btn-primary" disabled>Gunakan Lokasi Ini</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/vendor/leaflet/leaflet.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

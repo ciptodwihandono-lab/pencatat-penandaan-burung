@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v17";
+const CACHE_NAME = "ringing-burung-cache-v19";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,6 +13,16 @@ const APP_SHELL = [
   "./js/charts.js",
   "./js/cloud.js",
   "./js/firebase-config.js",
+  "./js/exif-gps.js",
+  "./js/photomap.js",
+  "./js/mappicker.js",
+  "./js/vendor/leaflet/leaflet.js",
+  "./js/vendor/leaflet/leaflet.css",
+  "./js/vendor/leaflet/images/marker-icon.png",
+  "./js/vendor/leaflet/images/marker-icon-2x.png",
+  "./js/vendor/leaflet/images/marker-shadow.png",
+  "./js/vendor/leaflet/images/layers.png",
+  "./js/vendor/leaflet/images/layers-2x.png",
   "./icons/icon-v2-192.png",
   "./icons/icon-v2-512.png",
 ];
