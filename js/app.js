@@ -1033,6 +1033,7 @@ function showApp() {
 }
 
 function showGate() {
+  clearAuthMarker();
   document.getElementById("auth-gate").hidden = false;
   document.getElementById("app-header").hidden = true;
   document.getElementById("app").hidden = true;
@@ -1056,6 +1057,7 @@ function showGateError(message) {
 }
 
 function showPendingApproval(email) {
+  clearAuthMarker();
   document.getElementById("auth-gate").hidden = false;
   document.getElementById("app-header").hidden = true;
   document.getElementById("app").hidden = true;
@@ -1169,9 +1171,45 @@ document.getElementById("gate-pending-refresh-btn").addEventListener("click", as
   }
 });
 
+// ---------- Ingat sesi login di perangkat ini (supaya refresh langsung
+// masuk tanpa menunggu SDK Firebase dimuat dari internet) ----------
+// Penanda ini hanya mempercepat tampilan awal. Keabsahan sesi tetap dicek
+// Firebase di latar belakang: kalau ternyata sudah keluar/ditolak, penanda
+// dihapus dan pengguna dikembalikan ke halaman login.
+const AUTH_MARKER_KEY = "auth_marker_v1";
+
+function saveAuthMarker(user) {
+  try {
+    localStorage.setItem(
+      AUTH_MARKER_KEY,
+      JSON.stringify({ uid: user.uid, email: user.email, admin: cloud.isAdmin() })
+    );
+  } catch (err) {
+    // localStorage nonaktif/penuh -- lewati, tidak fatal.
+  }
+}
+
+function loadAuthMarker() {
+  try {
+    const raw = localStorage.getItem(AUTH_MARKER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function clearAuthMarker() {
+  try {
+    localStorage.removeItem(AUTH_MARKER_KEY);
+  } catch (err) {
+    // abaikan
+  }
+}
+
 async function handleAuthedUser(user) {
   await renderAkunUi();
   if (cloud.isApproved()) {
+    saveAuthMarker(user);
     showApp();
     syncAll(true);
   } else {
@@ -1179,14 +1217,33 @@ async function handleAuthedUser(user) {
   }
 }
 
+let authRetryTimer = null;
+let authRetryCount = 0;
+
 function initAuthWatch() {
-  document.getElementById("gate-checking").hidden = false;
-  document.getElementById("gate-error").hidden = true;
-  document.getElementById("gate-pending").hidden = true;
-  document.getElementById("gate-login-form").hidden = true;
+  clearTimeout(authRetryTimer);
+  const marker = cloud.isEnabled() ? loadAuthMarker() : null;
+
+  if (marker) {
+    // Perangkat ini sudah pernah login & disetujui: langsung tampilkan
+    // aplikasi (data lokal sudah ada di IndexedDB), lalu verifikasi ke
+    // Firebase di latar belakang.
+    document.getElementById("nav-admin").hidden = !marker.admin;
+    document.getElementById("header-logout-btn").hidden = false;
+    document.getElementById("akun-not-configured").hidden = true;
+    document.getElementById("akun-logged-in").hidden = false;
+    document.getElementById("akun-email-display").textContent = marker.email;
+    showApp();
+  } else {
+    document.getElementById("gate-checking").hidden = false;
+    document.getElementById("gate-error").hidden = true;
+    document.getElementById("gate-pending").hidden = true;
+    document.getElementById("gate-login-form").hidden = true;
+  }
 
   cloud
     .onAuthChange(async (user) => {
+      authRetryCount = 0;
       if (!cloud.isEnabled()) {
         // Fitur cloud belum dikonfigurasi -- jangan kunci pengguna, langsung
         // masuk ke aplikasi seperti mode offline-lokal biasa.
@@ -1201,9 +1258,23 @@ function initAuthWatch() {
       }
     })
     .catch((err) => {
-      showGateError("Gagal memuat layanan login: " + err.message);
+      if (!marker) {
+        showGateError("Gagal memuat layanan login: " + err.message);
+        return;
+      }
+      // Sudah masuk lewat penanda sesi: jangan blokir. Tetap pakai aplikasi
+      // (data tersimpan di perangkat) dan coba sambungkan lagi nanti.
+      showToast("Mode offline: layanan login belum termuat. Data tetap tersimpan di perangkat.");
+      if (authRetryCount < 3) {
+        authRetryCount++;
+        authRetryTimer = setTimeout(initAuthWatch, 15000);
+      }
     });
 }
+
+window.addEventListener("online", () => {
+  if (loadAuthMarker() && !cloud.currentUser()) initAuthWatch();
+});
 
 document.getElementById("gate-retry-btn").addEventListener("click", initAuthWatch);
 

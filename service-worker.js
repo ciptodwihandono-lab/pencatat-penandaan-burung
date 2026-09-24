@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v21";
+const CACHE_NAME = "ringing-burung-cache-v22";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -54,8 +54,29 @@ self.addEventListener("activate", (event) => {
 // gagal terhapus di activate (pernah terjadi), isinya tidak "membayangi"
 // versi baru selamanya. Tanpa pembatasan ini, cache lama bisa terus
 // tersaji meski CACHE_NAME sudah dinaikkan.
+// SDK Firebase (gstatic, URL berversi jadi isinya tidak pernah berubah):
+// cache-first. Setelah termuat sekali saat online, refresh berikutnya instan
+// dan tetap jalan tanpa sinyal -- sebelumnya dimuat ulang dari internet tiap
+// refresh dan sering kena timeout ("gagal memuat layanan login").
+const FIREBASE_SDK_PREFIX = "https://www.gstatic.com/firebasejs/";
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.url.startsWith(FIREBASE_SDK_PREFIX)) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(event.request).then(
+          (cached) =>
+            cached ||
+            fetch(event.request).then((response) => {
+              if (response.ok) cache.put(event.request, response.clone());
+              return response;
+            })
+        )
+      )
+    );
+    return;
+  }
   event.respondWith(
     caches.open(CACHE_NAME).then((cache) =>
       cache.match(event.request).then((cached) => {
