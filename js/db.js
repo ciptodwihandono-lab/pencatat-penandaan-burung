@@ -2,10 +2,11 @@
 // sehingga input data tetap berfungsi tanpa koneksi internet.
 
 const DB_NAME = "ringing_burung_db";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE = "catatan";
 const SETTINGS_STORE = "pengaturan";
 const LOGNET_STORE = "log_banding";
+const FOTO_STORE = "foto_peta";
 
 let dbPromise = null;
 
@@ -37,6 +38,9 @@ function openDb() {
         lognetStore.createIndex("net_tanggal", "net_tanggal", { unique: false });
         lognetStore.createIndex("net_lokasi", "net_lokasi", { unique: false });
         lognetStore.createIndex("net_kode", "net_kode", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(FOTO_STORE)) {
+        db.createObjectStore(FOTO_STORE, { keyPath: "id", autoIncrement: true });
       }
     };
     req.onsuccess = (e) => {
@@ -235,6 +239,43 @@ export async function getSetting(key) {
   return new Promise((resolve, reject) => {
     const req = store.get(key);
     req.onsuccess = () => resolve(req.result ? req.result.value : undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ---------- Foto peta (foto dengan GPS EXIF, untuk ditampilkan di tab Peta) ----------
+export async function addFoto(foto) {
+  const store = await tx(FOTO_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.add(foto);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteFoto(id) {
+  const store = await tx(FOTO_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getAllFoto() {
+  const store = await tx(FOTO_STORE, "readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function clearAllFoto() {
+  const store = await tx(FOTO_STORE, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.clear();
+    req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
 }
