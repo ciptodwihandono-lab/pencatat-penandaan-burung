@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v20";
+const CACHE_NAME = "ringing-burung-cache-v21";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -27,9 +27,15 @@ const APP_SHELL = [
   "./icons/icon-v2-512.png",
 ];
 
+// cache: "reload" -- lewati cache HTTP browser (GitHub Pages: max-age=600) saat
+// mengisi cache app shell, supaya file JS yang saling bergantung (mis. db.js
+// dan photomap.js) tidak tercampur versi lama dan baru.
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => Promise.all(APP_SHELL.map((url) => cache.add(new Request(url, { cache: "reload" })))))
+      .then(() => self.skipWaiting())
   );
 });
 
