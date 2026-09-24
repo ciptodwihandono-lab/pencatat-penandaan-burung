@@ -259,7 +259,6 @@ function buildForm() {
     let extra = "";
     if (sec.key === "gps") {
       extra = `<div class="field"><label>&nbsp;</label><button type="button" id="gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
-        <div class="field"><label>&nbsp;</label><button type="button" id="map-pick-btn" class="btn">🗺️ Pilih di Peta</button></div>
         <div class="field full"><label>Koordinat UTM (otomatis, untuk UTM Geo Map)</label><div id="utm-preview" class="utm-preview">Isi latitude/longitude untuk melihat koordinat UTM.</div></div>`;
     }
     if (sec.key === "tambahan") {
@@ -275,7 +274,6 @@ function buildForm() {
     </div>`;
 
   document.getElementById("gps-btn").addEventListener("click", fetchGps);
-  document.getElementById("map-pick-btn").addEventListener("click", () => pickFromMap("f_latitude", "f_longitude", updateUtmPreview));
   document.getElementById("f_foto").addEventListener("change", handlePhotoInput);
   document.getElementById("form-cancel-btn").addEventListener("click", () => {
     clearDraft("record", state.editingId);
