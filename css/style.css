@@ -360,6 +360,13 @@ a.btn, label.btn { display: inline-block; text-decoration: none; }
   margin-top: 12px;
 }
 
+/* ---------- Panel GPS Saya di tab Peta ---------- */
+.gps-panel { margin-bottom: 12px; }
+.gps-panel .form-actions { align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.gps-panel .checkbox-row { margin-top: 0; }
+.gps-info-main { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.gps-panel .btn-small { margin-top: 8px; }
+
 /* ---------- Tab Peta (foto ber-GPS + Leaflet) ---------- */
 .peta-map {
   width: 100%;

@@ -4,9 +4,116 @@
 
 import { readGpsFromJpeg } from "./exif-gps.js";
 import { addFoto, getAllFoto, deleteFoto } from "./db.js";
+import { latLonToUtm, formatUtm } from "./utm.js";
 
 let map = null;
 let markersLayer = null;
+
+// ---------- GPS Saya (posisi perangkat, ditampilkan dalam UTM) ----------
+let gpsLayer = null;
+let gpsWatchId = null;
+let gpsFirstFix = true;
+let lastUtmText = "";
+
+function gpsInfoEl() {
+  return document.getElementById("peta-gps-info");
+}
+
+function showGpsPosition(pos) {
+  const { latitude, longitude, accuracy, altitude } = pos.coords;
+  const utm = latLonToUtm(latitude, longitude);
+  lastUtmText = formatUtm(utm);
+
+  gpsInfoEl().innerHTML = `
+    <div class="gps-info-main">${lastUtmText}</div>
+    <div>Lat/Lon: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}</div>
+    <div>Akurasi: ±${Math.round(accuracy)} m${altitude != null ? ` · Ketinggian: ${Math.round(altitude)} m` : ""}</div>`;
+  document.getElementById("peta-gps-copy-btn").hidden = false;
+
+  ensureMap();
+  if (!gpsLayer) gpsLayer = L.layerGroup().addTo(map);
+  gpsLayer.clearLayers();
+  L.circle([latitude, longitude], { radius: accuracy, color: "#2a78d6", weight: 1, fillOpacity: 0.12 }).addTo(gpsLayer);
+  L.circleMarker([latitude, longitude], { radius: 8, color: "#fff", weight: 2, fillColor: "#2a78d6", fillOpacity: 1 }).addTo(gpsLayer);
+  if (gpsFirstFix) {
+    map.setView([latitude, longitude], Math.max(map.getZoom(), 17));
+    gpsFirstFix = false;
+  } else {
+    map.panTo([latitude, longitude]);
+  }
+}
+
+function showGpsError(err) {
+  const reasons = {
+    1: "Izin lokasi ditolak. Izinkan akses lokasi untuk aplikasi/browser ini di pengaturan HP.",
+    2: "Posisi tidak tersedia. Coba pindah ke area terbuka.",
+    3: "Waktu habis saat mencari sinyal GPS. Coba lagi di area terbuka.",
+  };
+  gpsInfoEl().textContent = reasons[err.code] || "Gagal mengambil GPS: " + err.message;
+}
+
+function fetchGpsOnce() {
+  if (!navigator.geolocation) {
+    gpsInfoEl().textContent = "Perangkat ini tidak mendukung GPS.";
+    return;
+  }
+  gpsInfoEl().textContent = "Mencari sinyal GPS...";
+  gpsFirstFix = true;
+  navigator.geolocation.getCurrentPosition(showGpsPosition, showGpsError, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+}
+
+function startGpsWatch() {
+  if (!navigator.geolocation || gpsWatchId !== null) return;
+  gpsInfoEl().textContent = "Mencari sinyal GPS...";
+  gpsFirstFix = true;
+  gpsWatchId = navigator.geolocation.watchPosition(showGpsPosition, showGpsError, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+}
+
+// Dipanggil juga saat pindah dari tab Peta, supaya GPS tidak terus menyala
+// (boros baterai) kalau pengguna sudah meninggalkan halaman ini.
+export function stopGpsWatch() {
+  if (gpsWatchId !== null) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+  }
+  const live = document.getElementById("peta-gps-live");
+  if (live) live.checked = false;
+}
+
+function initGpsPanel() {
+  const btn = document.getElementById("peta-gps-btn");
+  if (!btn || btn._wired) return;
+  btn._wired = true;
+
+  btn.addEventListener("click", fetchGpsOnce);
+
+  document.getElementById("peta-gps-live").addEventListener("change", (e) => {
+    if (e.target.checked) startGpsWatch();
+    else stopGpsWatch();
+  });
+
+  const copyBtn = document.getElementById("peta-gps-copy-btn");
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(lastUtmText);
+      copyBtn.textContent = "Tersalin ✓";
+    } catch (err) {
+      copyBtn.textContent = "Gagal menyalin";
+    }
+    setTimeout(() => (copyBtn.textContent = "Salin UTM"), 1500);
+  });
+
+  // Otomatis ambil GPS begitu tab dibuka -- hanya kalau izin lokasi sudah
+  // pernah diberikan, supaya tidak memunculkan permintaan izin tiba-tiba.
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((status) => {
+        if (status.state === "granted") fetchGpsOnce();
+      })
+      .catch(() => {});
+  }
+}
 
 function ensureMap() {
   if (map) return map;
@@ -103,6 +210,7 @@ export function initPhotoMapView() {
   // kali tab ini dibuka (kontainer sebelumnya bisa hidden=true, jadi 0x0).
   setTimeout(() => map.invalidateSize(), 0);
   renderMarkers();
+  initGpsPanel();
 
   const input = document.getElementById("peta-file-input");
   if (input && !input._wired) {

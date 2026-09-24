@@ -6,7 +6,7 @@ import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
 import { barChartHorizontal, lineChartTrend, barChartCategorical, topCounts, monthlyTrend } from "./charts.js";
 import * as cloud from "./cloud.js";
-import { initPhotoMapView } from "./photomap.js";
+import { initPhotoMapView, stopGpsWatch } from "./photomap.js";
 import { openMapPicker, initMapPicker } from "./mappicker.js";
 
 const state = {
@@ -89,6 +89,7 @@ function scheduleDraftSave(formName, id, fields) {
 
 function setView(view) {
   state.view = view;
+  if (view !== "peta") stopGpsWatch();
   document.querySelectorAll(".view").forEach((el) => (el.hidden = true));
   const map = {
     list: "view-list",

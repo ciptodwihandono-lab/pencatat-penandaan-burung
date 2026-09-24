@@ -148,6 +148,16 @@
       <input type="file" id="peta-file-input" accept="image/jpeg" multiple hidden />
     </div>
     <p id="peta-upload-status" class="hint"></p>
+
+    <div class="gps-panel">
+      <div class="form-actions">
+        <button type="button" id="peta-gps-btn" class="btn btn-primary">📍 Ambil GPS Saya</button>
+        <label class="checkbox-row"><input type="checkbox" id="peta-gps-live" /> Perbarui otomatis (live)</label>
+      </div>
+      <div id="peta-gps-info" class="utm-preview">Belum ada lokasi. Tekan "Ambil GPS Saya" untuk melihat posisi dalam UTM.</div>
+      <button type="button" id="peta-gps-copy-btn" class="btn btn-small" hidden>Salin UTM</button>
+    </div>
+
     <div id="peta-map" class="peta-map"></div>
   </section>
 
