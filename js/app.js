@@ -1,6 +1,6 @@
 import { FIELDS, SECTIONS, LOGNET_FIELDS, LOGNET_CSV_COLUMNS } from "./fields.js";
 import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAdd, clearAll, getUnsyncedRecords, findByCloudId } from "./db.js";
-import { addLognet, updateLognet, deleteLognet, getLognet, getAllLognet, clearAllLognet, bulkAddLognet } from "./db.js";
+import { addLognet, updateLognet, deleteLognet, getLognet, getAllLognet, clearAllLognet, bulkAddLognet, getSetting, saveSetting } from "./db.js";
 import { downloadCsv, csvToRecords, downloadKml, downloadGpx, downloadLognetKml, downloadLognetGpx } from "./export.js";
 import { latLonToUtm, formatUtm } from "./utm.js";
 import * as backup from "./backup.js";
@@ -599,8 +599,9 @@ document.getElementById("detail-delete-btn").addEventListener("click", async () 
   if (!confirm("Hapus catatan ini secara permanen?")) return;
   const rec = await getRecord(state.detailId);
   await deleteRecord(state.detailId);
-  if (rec?.cloud_id && cloud.currentUser()) {
-    cloud.deleteCloudRecord(rec.cloud_id).catch((err) => showToast("Gagal hapus di cloud: " + err.message));
+  if (rec?.cloud_id) {
+    await addTombs([rec.cloud_id], true);   // dihapus di cloud sekarang, atau saat ada sinyal
+    flushCloudDeletes();
   }
   await reload();
   showToast("Catatan dihapus.");
@@ -1075,6 +1076,18 @@ document.getElementById("auto-backup-toggle").addEventListener("change", async (
 
 document.getElementById("clear-all-btn").addEventListener("click", async () => {
   if (!confirm("Yakin ingin menghapus SEMUA data (tally sheet dan Log Banding) di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) return;
+  const recs = await getAllRecords();
+  const synced = recs.filter((r) => r.cloud_id);
+  if (synced.length) {
+    // Semua catatan yang pernah tersinkron diingat agar tidak diunduh lagi dari cloud saat aplikasi dibuka ulang.
+    await addTombs(synced.map((r) => r.cloud_id), false);
+    const me = cloud.currentUser()?.email || "";
+    const mine = synced.filter((r) => !cloud.isShared() || !r.owner_email || r.owner_email === me);
+    if (mine.length && confirm(`Juga hapus ${mine.length} catatan milik akun Anda di cloud?\n\nOK = hapus juga di cloud (tidak bisa dibatalkan).\nBatal = hanya di perangkat ini; data cloud tetap aman dan tidak diunduh lagi ke perangkat ini.${cloud.isShared() ? "\n\nCatatan milik anggota tim lain tidak dihapus." : ""}`)) {
+      await addTombs(mine.map((r) => r.cloud_id), true);
+      flushCloudDeletes().then((n) => { if (n) showToast(`${n} catatan juga dihapus di cloud.`); });
+    }
+  }
   await clearAll();
   await clearAllLognet();
   await reload();
@@ -1195,12 +1208,35 @@ document.getElementById("gate-register-btn").addEventListener("click", async () 
   }
 });
 
+// ---------- Catatan yang sudah dihapus (agar tidak diunduh lagi dari cloud) ----------
+// { cloud_id: { pending: true = belum terhapus di cloud (mis. dihapus tanpa sinyal), t: waktu } }
+const TOMB_KEY = "cloud_tombstones";
+async function getTombs() { try { return (await getSetting(TOMB_KEY)) || {}; } catch (e) { return {}; } }
+async function addTombs(ids, pending) {
+  const t = await getTombs();
+  ids.filter(Boolean).forEach((id) => { t[id] = { pending: !!pending || !!(t[id] && t[id].pending), t: Date.now() }; });
+  await saveSetting(TOMB_KEY, t);
+}
+// Hapus di cloud catatan yang tertunda; yang berhasil ditandai selesai (tetap diingat agar tidak diunduh lagi).
+async function flushCloudDeletes() {
+  if (!cloud.currentUser() || !navigator.onLine) return 0;
+  const t = await getTombs(); let n = 0;
+  for (const [id, v] of Object.entries(t)) {
+    if (!v.pending) continue;
+    try { await cloud.deleteCloudRecord(id); v.pending = false; n++; } catch (e) { /* coba lagi saat sinkron berikutnya */ }
+  }
+  if (n) await saveSetting(TOMB_KEY, t);
+  return n;
+}
+
 async function syncAll(silent) {
   if (!cloud.currentUser()) return;
   const syncStatus = document.getElementById("akun-sync-status");
   try {
     if (!silent && syncStatus) syncStatus.textContent = "Menyinkronkan data...";
 
+    await flushCloudDeletes();
+    const tombs = await getTombs();
     const unsynced = await getUnsyncedRecords();
     for (const rec of unsynced) {
       const cloudId = await cloud.pushRecord(rec);
@@ -1210,6 +1246,7 @@ async function syncAll(silent) {
     const cloudRecords = await cloud.fetchAllCloudRecords();
     let pulled = 0;
     for (const cr of cloudRecords) {
+      if (tombs[cr.cloud_id]) continue;   // sudah dihapus di perangkat ini: jangan diunduh lagi
       const existing = await findByCloudId(cr.cloud_id);
       if (existing) continue;
       const { cloud_id, synced_at, owner_email, ...rest } = cr;
@@ -1240,6 +1277,14 @@ document.getElementById("header-logout-btn").addEventListener("click", async () 
 });
 
 document.getElementById("akun-sync-btn").addEventListener("click", () => syncAll(false));
+// Lupakan daftar catatan yang dihapus di perangkat ini (kecuali yang menunggu dihapus di cloud), lalu sinkron ulang.
+document.getElementById("akun-redownload-btn").addEventListener("click", async () => {
+  if (!confirm("Unduh ulang semua catatan dari cloud, termasuk yang sebelumnya dihapus hanya di perangkat ini?")) return;
+  const t = await getTombs();
+  for (const [id, v] of Object.entries(t)) if (!v.pending) delete t[id];
+  await saveSetting(TOMB_KEY, t);
+  syncAll(false);
+});
 
 document.getElementById("gate-pending-logout-btn").addEventListener("click", async () => {
   await cloud.logout();
