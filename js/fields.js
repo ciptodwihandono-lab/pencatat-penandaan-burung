@@ -30,7 +30,11 @@ export const FIELDS = [
   { key: "retrap", label: "Retrap (Tangkap Ulang)", type: "suggest", options: RETRAP_SUGGESTIONS, section: "cincin" },
 
   // Spesies
-  { key: "nama_spesies", label: "Scientific or Common Name (Nama Spesies)", type: "text", section: "spesies", required: true },
+  { key: "nama_spesies", label: "Scientific or Common Name (Nama Spesies)", type: "text", section: "spesies", required: true,
+    hint: "Ketik nama Indonesia, ilmiah, atau Inggris lalu pilih dari daftar burung Indonesia; nama ilmiah yang tersimpan." },
+  { key: "nama_indonesia", label: "Nama Indonesia (otomatis)", type: "text", section: "spesies" },
+  { key: "nama_inggris", label: "English Name (otomatis)", type: "text", section: "spesies" },
+  { key: "famili", label: "Famili (otomatis)", type: "text", section: "spesies" },
   { key: "nomor_spesies", label: "Species Number (Nomor Spesies)", type: "text", section: "spesies" },
 
   // Umur & kelamin

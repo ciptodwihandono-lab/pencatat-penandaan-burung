@@ -1,4 +1,4 @@
-const CACHE_NAME = "ringing-burung-cache-v24";
+const CACHE_NAME = "ringing-burung-cache-v25";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -16,6 +16,8 @@ const APP_SHELL = [
   "./js/exif-gps.js",
   "./js/photomap.js",
   "./js/mappicker.js",
+  "./js/autofill.js",
+  "./js/burung-indonesia.js",
   "./js/vendor/leaflet/leaflet.js",
   "./js/vendor/leaflet/leaflet.css",
   "./js/vendor/leaflet/images/marker-icon.png",
