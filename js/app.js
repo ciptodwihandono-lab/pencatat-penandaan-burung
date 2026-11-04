@@ -8,6 +8,7 @@ import { barChartHorizontal, lineChartTrend, barChartCategorical, topCounts, mon
 import * as cloud from "./cloud.js";
 import { initPhotoMapView, stopGpsWatch } from "./photomap.js";
 import { openMapPicker, initMapPicker } from "./mappicker.js";
+import { attachSpeciesPicker, attachHistory, nextBandNumber, findBurung } from "./autofill.js";
 
 const state = {
   view: "list",
@@ -253,11 +254,21 @@ function badgeFor(r) {
   return isRetrap(r) ? '<span class="badge badge-recapture">Retrap</span>' : '<span class="badge">Baru</span>';
 }
 
+// Nama tampil: "Nama Indonesia (Nama ilmiah)" dengan nama ilmiah miring.
+function speciesLabel(r) {
+  if (!r.nama_spesies) return "(spesies belum diisi)";
+  const b = findBurung(r.nama_spesies);
+  const ind = r.nama_indonesia || (b && b.ind) || "";
+  const sci = b ? b.sci : /^[A-Z][a-z]+ [a-z-]+/.test(r.nama_spesies) ? r.nama_spesies : "";
+  if (sci && ind) return `${escapeHtml(ind)} <i>${escapeHtml(sci)}</i>`;
+  return sci ? `<i>${escapeHtml(sci)}</i>` : escapeHtml(r.nama_spesies);
+}
+
 function recordCardHtml(r) {
   return `
     <div class="record-card" data-id="${r.id}">
       <div class="record-main">
-        <strong>${escapeHtml(r.nama_spesies || "(spesies belum diisi)")}</strong> — ${escapeHtml(r.nomor_cincin || "-")}
+        <strong>${speciesLabel(r)}</strong> — ${escapeHtml(r.nomor_cincin || "-")}
         <div class="record-sub">${escapeHtml(r.tanggal || "-")} ${escapeHtml(r.waktu || "")} &middot; ${escapeHtml(r.kode_lokasi || "-")} &middot; ${escapeHtml(r.pencincin_pengukur || "-")}</div>
       </div>
       ${badgeFor(r)}
@@ -357,6 +368,73 @@ function buildForm() {
   // kali form dibuka ulang (submit/draft-save jadi terpicu berkali-kali).
   form.onsubmit = handleFormSubmit;
   form.oninput = () => scheduleDraftSave("record", state.editingId, FIELDS);
+  setupRecordAutofill();
+}
+
+// ---------- Isian otomatis form catatan ----------
+const setVal = (key, v) => { const el = document.getElementById(`f_${key}`); if (el && v !== undefined && v !== null) el.value = v; };
+const getVal = (key) => (document.getElementById(`f_${key}`)?.value || "").trim();
+// Kolom yang diisi otomatis dari catatan terakhir saat menambah catatan baru (info kegiatan yang biasanya sama).
+const CARRY_KEYS = ["bander", "lokasi_nama", "catat", "pencincin_pengukur", "cek_trainer", "kode_lokasi", "metode", "latitude", "longitude", "ketinggian_m"];
+const NO_HISTORY = new Set(["nama_spesies", "nama_indonesia", "nama_inggris", "famili", "nomor_cincin", "catatan", "photo_ref"]);
+
+function setupRecordAutofill() {
+  const others = state.records.filter((r) => r.id !== state.editingId);
+  // Saran dari isian sebelumnya untuk kolom teks.
+  FIELDS.filter((f) => (f.type === "text" || f.type === "suggest") && !NO_HISTORY.has(f.key)).forEach((f) =>
+    attachHistory(document.getElementById(`f_${f.key}`), others, f.key, f.options || [])
+  );
+  // Nomor cincin: saran nomor berikutnya + nomor yang pernah dipakai (untuk retrap).
+  const next = nextBandNumber(others);
+  attachHistory(document.getElementById("f_nomor_cincin"), others, "nomor_cincin", next ? [next] : []);
+  // Nama spesies: pencarian daftar burung Indonesia.
+  attachSpeciesPicker(document.getElementById("f_nama_spesies"), (b) => {
+    setVal("nama_indonesia", b.ind); setVal("nama_inggris", b.eng); setVal("famili", b.fam);
+    if (!getVal("nomor_spesies")) {
+      const prev = others.find((r) => r.nama_spesies === b.sci && r.nomor_spesies);
+      if (prev) setVal("nomor_spesies", prev.nomor_spesies);
+    }
+    scheduleDraftSave("record", state.editingId, FIELDS);
+  });
+  // Retrap: nomor cincin yang sudah pernah dicatat.
+  const ring = document.getElementById("f_nomor_cincin");
+  ring.addEventListener("change", () => {
+    const v = ring.value.trim().toLowerCase(); if (!v) return;
+    const prev = others.filter((r) => String(r.nomor_cincin || "").trim().toLowerCase() === v)
+      .sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || ""))[0];
+    if (!prev) return;
+    if (!getVal("retrap")) setVal("retrap", "Y");
+    if (!getVal("nama_spesies") && prev.nama_spesies) {
+      setVal("nama_spesies", prev.nama_spesies); setVal("nama_indonesia", prev.nama_indonesia || ""); setVal("nama_inggris", prev.nama_inggris || ""); setVal("famili", prev.famili || "");
+      if (!getVal("nomor_spesies")) setVal("nomor_spesies", prev.nomor_spesies || "");
+      document.getElementById("f_nama_spesies")._spShowInfo?.();
+    }
+    showToast(`Cincin ${ring.value.trim()} pernah dipasang ${prev.tanggal || ""} (${prev.nama_indonesia || prev.nama_spesies || "jenis ?"}). Retrap diisi Y.`);
+    scheduleDraftSave("record", state.editingId, FIELDS);
+  });
+  // Berat burung = (burung + kantong) - kantong, selama kolom berat burung belum diketik sendiri.
+  const bb = document.getElementById("f_berat_bird_bag"), bag = document.getElementById("f_berat_bag"), bird = document.getElementById("f_berat_bird");
+  const calc = () => {
+    if (bird.dataset.manual) return;
+    const a = parseFloat(bb.value), c = parseFloat(bag.value);
+    bird.value = isFinite(a) && isFinite(c) && a >= c ? (Math.round((a - c) * 10) / 10).toString() : bird.value;
+  };
+  bb.addEventListener("input", calc); bag.addEventListener("input", calc);
+  bird.addEventListener("input", () => { bird.dataset.manual = bird.value ? "1" : ""; });
+  bird.insertAdjacentHTML("afterend", '<div class="field-hint">Otomatis: (burung + kantong) − kantong</div>');
+}
+
+function prefillFromLastRecord() {
+  const last = [...state.records].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "") || (b.id || 0) - (a.id || 0))[0];
+  if (!last) return;
+  let n = 0;
+  CARRY_KEYS.forEach((k) => { if (last[k] !== undefined && last[k] !== "" && !getVal(k)) { setVal(k, last[k]); n++; } });
+  if (n) {
+    const note = document.createElement("div");
+    note.className = "autofill-note";
+    note.textContent = `Info kegiatan, pencatat, kode lokasi, metode, dan koordinat diisi otomatis dari catatan terakhir (${last.tanggal || ""} ${last.nomor_cincin || ""}). Ubah bila perlu.`;
+    document.getElementById("record-form").prepend(note);
+  }
 }
 
 // Dipakai oleh tombol "Pilih di Peta" di form catatan maupun form Log Mist
@@ -405,12 +483,15 @@ function openForm(id) {
         img.hidden = false;
       }
       applyDraftIfAny("record", id, FIELDS);
+      document.getElementById("f_nama_spesies")._spShowInfo?.();
     });
   } else {
     const today = new Date();
     document.getElementById("f_tanggal").value = today.toISOString().slice(0, 10);
     document.getElementById("f_waktu").value = today.toTimeString().slice(0, 5);
+    prefillFromLastRecord();
     applyDraftIfAny("record", id, FIELDS);
+    document.getElementById("f_nama_spesies")._spShowInfo?.();
   }
   setView("form");
 }
@@ -503,7 +584,7 @@ async function openDetail(id) {
       ? `<div class="detail-item"><dt>Koordinat UTM</dt><dd>${escapeHtml(formatUtm({ zone: rec.utm_zone, hemisphere: rec.utm_hemisphere, easting: rec.utm_easting, northing: rec.utm_northing }))}</dd></div>`
       : "";
   container.innerHTML =
-    `<h2>${escapeHtml(rec.nama_spesies || "(tanpa nama)")} ${badgeFor(rec)}</h2><dl class="detail-grid">` +
+    `<h2>${rec.nama_spesies ? speciesLabel(rec) : "(tanpa nama)"} ${badgeFor(rec)}</h2><dl class="detail-grid">` +
     FIELDS.filter((f) => rec[f.key] !== undefined && rec[f.key] !== "")
       .map((f) => `<div class="detail-item"><dt>${escapeHtml(f.label)}</dt><dd>${escapeHtml(rec[f.key])}</dd></div>`)
       .join("") +
@@ -591,6 +672,11 @@ function buildLognetForm() {
   // onsubmit/oninput, bukan addEventListener -- lihat catatan yang sama di buildForm().
   form.onsubmit = handleLognetFormSubmit;
   form.oninput = () => scheduleDraftSave("lognet", state.lognetEditingId, LOGNET_FIELDS);
+  const others = state.lognetRecords.filter((r) => r.id !== state.lognetEditingId);
+  LOGNET_FIELDS.filter((f) => (f.type === "text" || f.type === "suggest") && f.key !== "net_nama_burung" && f.key !== "net_catatan").forEach((f) =>
+    attachHistory(document.getElementById(`f_${f.key}`), others, f.key, f.options || [])
+  );
+  attachSpeciesPicker(document.getElementById("f_net_nama_burung"), () => scheduleDraftSave("lognet", state.lognetEditingId, LOGNET_FIELDS));
 }
 
 function updateLognetUtmPreview() {

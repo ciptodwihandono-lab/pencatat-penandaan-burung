@@ -447,3 +447,12 @@ a.btn, label.btn { display: inline-block; text-decoration: none; }
   .main-nav { width: 100%; }
   .nav-btn { flex: 1 1 auto; }
 }
+
+/* Pencarian jenis burung & isian otomatis */
+.sp-suggest { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); max-height: 320px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.sp-suggest button { border: 0; border-top: 1px solid var(--border); background: none; color: var(--text); text-align: left; padding: 9px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+.sp-suggest button:first-child { border-top: 0; }
+.sp-suggest button:active, .sp-suggest button:hover { background: rgba(0,0,0,.05); }
+.sp-suggest button span { display: block; font-size: 12px; color: var(--text-muted); }
+.sp-suggest .iucn, .sp-info.warn { color: var(--red-600); font-style: normal; font-weight: 600; }
+.autofill-note { font-size: 12px; color: var(--text-muted); background: rgba(0,0,0,.04); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
