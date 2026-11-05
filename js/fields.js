@@ -86,11 +86,17 @@ export const SECTIONS = [
   { key: "spesies", title: "Spesies" },
   { key: "biologi", title: "Umur & Jenis Kelamin" },
   { key: "waktu", title: "Kode Lokasi & Waktu" },
+  { key: "gps", title: "Koordinat GPS" },
   { key: "tangkap", title: "Penangkapan" },
   { key: "berat", title: "Berat (gram)" },
   { key: "morfometri", title: "Morfometri (mm)" },
   { key: "tambahan", title: "Brood Patch, Moult, Foto & Catatan" },
 ];
+
+// Kolom yang sama untuk satu kegiatan (header tally sheet): diisi sekali per sesi penandaan,
+// lalu otomatis disalin ke setiap catatan burung (dan Log Banding) saat disimpan.
+export const SESSION_KEYS = ["bander", "lokasi_nama", "tanggal", "kode_lokasi", "catat", "pencincin_pengukur", "cek_trainer", "metode", "latitude", "longitude", "ketinggian_m"];
+export const CUACA_SUGGESTIONS = ["Cerah", "Berawan", "Mendung", "Gerimis", "Hujan"];
 
 export const CSV_COLUMNS = [
   "id",
