@@ -466,3 +466,6 @@ a.btn, label.btn { display: inline-block; text-decoration: none; }
 .chip-opt.on { background: var(--ink-700); color: var(--cream-100); border-color: var(--ink-700); }
 /* Form burung: nama Indonesia/Inggris/famili terisi otomatis dan sudah tampil di bawah Nama Spesies */
 .mode-burung .field-auto { display: none; }
+
+.foto-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.foto-acts label.btn { cursor: pointer; margin: 0; }
