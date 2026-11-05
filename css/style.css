@@ -456,3 +456,13 @@ a.btn, label.btn { display: inline-block; text-decoration: none; }
 .sp-suggest button span { display: block; font-size: 12px; color: var(--text-muted); }
 .sp-suggest .iucn, .sp-info.warn { color: var(--red-600); font-style: normal; font-weight: 600; }
 .autofill-note { font-size: 12px; color: var(--text-muted); background: rgba(0,0,0,.04); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+
+/* Sesi penandaan (info kegiatan sekali) & tombol pilihan cepat */
+.sesi-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--amber-500); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; box-shadow: var(--shadow); }
+.sesi-bar .sesi-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-sm { padding: 6px 10px; font-size: 13px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip-opt { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 36px; }
+.chip-opt.on { background: var(--ink-700); color: var(--cream-100); border-color: var(--ink-700); }
+/* Form burung: nama Indonesia/Inggris/famili terisi otomatis dan sudah tampil di bawah Nama Spesies */
+.mode-burung .field-auto { display: none; }

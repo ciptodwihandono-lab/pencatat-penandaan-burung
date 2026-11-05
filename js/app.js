@@ -1,4 +1,4 @@
-import { FIELDS, SECTIONS, LOGNET_FIELDS, LOGNET_CSV_COLUMNS } from "./fields.js";
+import { FIELDS, SECTIONS, LOGNET_FIELDS, LOGNET_CSV_COLUMNS, SESSION_KEYS, CUACA_SUGGESTIONS } from "./fields.js";
 import { addRecord, updateRecord, deleteRecord, getRecord, getAllRecords, bulkAdd, clearAll, getUnsyncedRecords, findByCloudId } from "./db.js";
 import { addLognet, updateLognet, deleteLognet, getLognet, getAllLognet, clearAllLognet, bulkAddLognet, getSetting, saveSetting } from "./db.js";
 import { downloadCsv, csvToRecords, downloadKml, downloadGpx, downloadLognetKml, downloadLognetGpx } from "./export.js";
@@ -106,6 +106,7 @@ function setView(view) {
     peta: "view-peta",
   };
   document.getElementById(map[view]).hidden = false;
+  if (view === "list" || view === "lognet") renderSesiBanner(view);
   const navKey = view.startsWith("lognet") ? "lognet" : view;
   document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === navKey));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -116,6 +117,15 @@ function setView(view) {
 // balik ke Daftar Data -- terutama penting saat sedang mengisi form di
 // lapangan dan sinyal/baterai bikin halaman ke-reload tanpa sengaja) ----------
 const LAST_VIEW_KEY = "last_view_v1";
+
+function renderSesiBanner(view) {
+  const host = document.getElementById(view === "list" ? "view-list" : "view-lognet");
+  let el = host.querySelector(".sesi-banner");
+  if (!el) { el = document.createElement("div"); el.className = "sesi-banner"; host.insertBefore(el, host.children[1] || null); }
+  const v = sesiAktif();
+  el.innerHTML = v ? `<div class="sesi-bar"><div><b>● Sesi berjalan:</b> ${escapeHtml(v.lokasi_nama)} · ${escapeHtml(v.tanggal)} · kode ${escapeHtml(v.kode_lokasi)} · ${sesiCount(v)} burung</div><div class="sesi-acts"><button type="button" class="btn btn-primary btn-sm" data-go="${view === "list" ? "burung" : "net"}">${view === "list" ? "+ Catat burung" : "+ Cek net"}</button></div></div>` : (view === "list" ? `<div class="sesi-bar"><div>Belum ada sesi berjalan. Mulai sesi untuk mengisi info kegiatan sekali saja.</div><div class="sesi-acts"><button type="button" class="btn btn-primary btn-sm" data-go="burung">Mulai sesi</button></div></div>` : "");
+  el.onclick = (e) => { const b = e.target.closest("[data-go]"); if (!b) return; if (b.dataset.go === "burung") openForm(null); else openLognetForm(null); };
+}
 
 function saveLastView() {
   try {
@@ -328,7 +338,8 @@ function fieldHtml(f) {
   if (f.type === "textarea") {
     input = `<textarea id="f_${f.key}" name="${f.key}"></textarea>`;
   } else if (f.type === "suggest") {
-    input = `<input id="f_${f.key}" type="text" name="${f.key}" list="dl_${f.key}" autocomplete="off" /><datalist id="dl_${f.key}">${f.options.map((o) => `<option value="${escapeHtml(o)}">`).join("")}</datalist>`;
+    // Pilihan cepat berupa tombol; kolom tetap boleh diketik bebas.
+    input = `<input id="f_${f.key}" type="text" name="${f.key}" autocomplete="off" /><div class="chip-row">${f.options.map((o) => `<button type="button" class="chip-opt" data-chip="${f.key}" data-v="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}</div>`;
   } else {
     const extra = [
       f.step !== undefined ? `step="${f.step}"` : "",
@@ -337,23 +348,112 @@ function fieldHtml(f) {
     ].join(" ");
     input = `<input id="f_${f.key}" type="${f.type}" name="${f.key}" ${extra} />`;
   }
-  return `<div class="field${f.type === "textarea" ? " full" : ""}"><label for="f_${f.key}">${escapeHtml(f.label)}${req}</label>${input}${hint}</div>`;
+  const auto = ["nama_indonesia", "nama_inggris", "famili"].includes(f.key) ? " field-auto" : "";
+  return `<div class="field${f.type === "textarea" ? " full" : ""}${auto}"><label for="f_${f.key}">${escapeHtml(f.label)}${req}</label>${input}${hint}</div>`;
+}
+
+// ---------- Sesi penandaan: info kegiatan diisi sekali, dipakai semua catatan ----------
+const SESI_KEY = "sesi_penandaan_v1";
+const SESI_EXTRA = [
+  { key: "cuaca", label: "Cuaca", type: "suggest", options: CUACA_SUGGESTIONS },
+  { key: "habitat", label: "Habitat", type: "text" },
+];
+const GPS_KEYS = ["latitude", "longitude", "ketinggian_m"];
+function getSesi() { try { return JSON.parse(localStorage.getItem(SESI_KEY) || "null"); } catch (e) { return null; } }
+function setSesi(v) { try { if (v) localStorage.setItem(SESI_KEY, JSON.stringify(v)); else localStorage.removeItem(SESI_KEY); } catch (e) {} }
+function sesiAktif() { const v = getSesi(); return v && v.aktif ? v : null; }
+const sesiFieldDefs = () => [...FIELDS.filter((f) => SESSION_KEYS.includes(f.key) && !GPS_KEYS.includes(f.key)), ...SESI_EXTRA];
+function sesiCount(v) { return state.records.filter((r) => r.tanggal === v.tanggal && r.kode_lokasi === v.kode_lokasi && (r.created_at || "") >= new Date(v.mulai || 0).toISOString()).length; }
+function sesiBarHtml(v, ctx) {
+  const n = sesiCount(v);
+  return `<div class="sesi-bar"><div><b>Sesi:</b> ${escapeHtml(v.lokasi_nama)} · ${escapeHtml(v.tanggal)} · kode ${escapeHtml(v.kode_lokasi)} · bander ${escapeHtml(v.bander)} · pencincin ${escapeHtml(v.pencincin_pengukur)}${v.metode ? " · " + escapeHtml(v.metode) : ""}${ctx === "burung" ? ` · <b>${n}</b> burung tercatat di sesi ini` : ""}</div>
+    <div class="sesi-acts"><button type="button" class="btn btn-ghost btn-sm" data-sesi="ubah">Ubah sesi</button><button type="button" class="btn btn-ghost btn-sm" data-sesi="akhiri">Akhiri sesi</button></div></div>`;
+}
+function wireChips(form) {
+  form.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-chip]"); if (!b) return;
+    const el = document.getElementById(`f_${b.dataset.chip}`); if (!el) return;
+    el.value = el.value === b.dataset.v ? "" : b.dataset.v;
+    el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  form.addEventListener("input", (e) => {
+    const k = e.target.id && e.target.id.startsWith("f_") ? e.target.id.slice(2) : null; if (!k) return;
+    form.querySelectorAll(`[data-chip="${k}"]`).forEach((c) => c.classList.toggle("on", c.dataset.v === e.target.value));
+  });
+}
+function refreshChips(form) { form.querySelectorAll("[data-chip]").forEach((c) => { const el = document.getElementById(`f_${c.dataset.chip}`); c.classList.toggle("on", !!el && el.value === c.dataset.v); }); }
+function gpsInto(latId, lonId, altId, after) {
+  if (!navigator.geolocation) { showToast("Perangkat ini tidak mendukung GPS."); return; }
+  showToast("Mengambil lokasi GPS...");
+  navigator.geolocation.getCurrentPosition((pos) => {
+    document.getElementById(latId).value = pos.coords.latitude.toFixed(6);
+    document.getElementById(lonId).value = pos.coords.longitude.toFixed(6);
+    if (altId && pos.coords.altitude != null && document.getElementById(altId)) document.getElementById(altId).value = Math.round(pos.coords.altitude);
+    if (after) after(); showToast(`Lokasi GPS diambil (±${Math.round(pos.coords.accuracy)} m).`);
+  }, (err) => showToast("Gagal mengambil GPS: " + err.message), { enableHighAccuracy: true, timeout: 15000 });
+}
+function utmPreview(lat, lon, el) { const u = latLonToUtm(lat, lon); el.textContent = u ? formatUtm(u) : "Isi latitude/longitude untuk melihat koordinat UTM."; }
+
+/* Form sesi: diisi sekali di awal kegiatan. */
+function buildSesiForm(fromBurung) {
+  state.formMode = "sesi";
+  const form = document.getElementById("record-form");
+  const gpsFields = GPS_KEYS.map((k) => FIELDS.find((f) => f.key === k));
+  form.innerHTML = `<div class="autofill-note">Isi <b>sekali</b> di awal kegiatan. Data ini otomatis dipakai untuk setiap burung yang dicatat dan untuk Log Banding, jadi tidak perlu diisi berulang.</div>
+    <div class="form-section"><h3>Info Kegiatan</h3><div class="form-grid">${sesiFieldDefs().map(fieldHtml).join("")}</div></div>
+    <div class="form-section"><h3>Lokasi GPS kegiatan</h3><div class="form-grid">${gpsFields.map(fieldHtml).join("")}
+      <div class="field"><label>&nbsp;</label><button type="button" id="sesi-gps-btn" class="btn">📍 Ambil GPS sekarang</button></div>
+      <div class="field"><label>&nbsp;</label><button type="button" id="sesi-map-btn" class="btn">🗺️ Pilih di Peta</button></div>
+      <div class="field full"><div id="sesi-utm" class="utm-preview"></div></div></div></div>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">${fromBurung ? "Simpan sesi" : "Mulai sesi &amp; catat burung"}</button><button type="button" id="form-cancel-btn" class="btn btn-ghost">Batal</button></div>`;
+  const prev = getSesi() || {};
+  const last = [...state.records].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0] || {};
+  [...sesiFieldDefs(), ...gpsFields].forEach((f) => { const v = prev[f.key] ?? last[f.key]; if (v !== undefined && v !== "") setVal(f.key, v); });
+  if (!fromBurung) setVal("tanggal", new Date().toISOString().slice(0, 10));
+  const others = state.records;
+  sesiFieldDefs().filter((f) => f.type === "text" || f.type === "suggest").forEach((f) => attachHistory(document.getElementById(`f_${f.key}`), others, f.key, []));
+  const up = () => utmPreview(getVal("latitude"), getVal("longitude"), document.getElementById("sesi-utm"));
+  document.getElementById("sesi-gps-btn").addEventListener("click", () => gpsInto("f_latitude", "f_longitude", "f_ketinggian_m", up));
+  document.getElementById("sesi-map-btn").addEventListener("click", () => pickFromMap("f_latitude", "f_longitude", up));
+  ["f_latitude", "f_longitude"].forEach((id) => document.getElementById(id).addEventListener("input", up));
+  up(); if (!getVal("latitude") && !fromBurung) gpsInto("f_latitude", "f_longitude", "f_ketinggian_m", up);
+  document.getElementById("form-cancel-btn").addEventListener("click", () => setView(fromBurung ? "form" : "list") || (fromBurung && openForm(null)));
+  refreshChips(form);
+  form.oninput = null;
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const v = { aktif: true, mulai: (fromBurung && prev.mulai) || Date.now() };
+    const missing = [];
+    [...sesiFieldDefs(), ...gpsFields].forEach((f) => { const val = getVal(f.key); if (f.required && !val) missing.push(f.label); v[f.key] = f.type === "number" ? (val === "" ? "" : Number(val)) : val; });
+    if (missing.length) { showToast("Lengkapi dulu: " + missing.join(", ")); return; }
+    setSesi(v); showToast(fromBurung ? "Sesi diperbarui." : "Sesi dimulai. Catat burung pertama."); openForm(null);
+  };
 }
 
 function buildForm() {
   const form = document.getElementById("record-form");
+  const sesi = !state.editingId ? sesiAktif() : null;
+  state.formMode = sesi ? "burung" : "lengkap";
+  form.classList.toggle("mode-burung", !!sesi);
+  // Mode burung: hanya kolom per burung; info kegiatan diambil dari sesi. Mode lengkap (edit): semua kolom.
+  const skip = sesi ? new Set(SESSION_KEYS) : new Set();
   const sectionsHtml = SECTIONS.map((sec) => {
-    const fields = FIELDS.filter((f) => f.section === sec.key).map(fieldHtml).join("");
+    const fields = FIELDS.filter((f) => f.section === sec.key && !skip.has(f.key)).map(fieldHtml).join("");
     let extra = "";
     if (sec.key === "tambahan") {
       extra = `<div class="field full"><label>Lampirkan Foto (opsional, tambahan digital selain kolom "Photo")</label><input type="file" id="f_foto" accept="image/*" capture="environment" /><img id="photo-preview" class="photo-preview" hidden /></div>`;
     }
+    if (sec.key === "gps" && !sesi) {
+      extra = `<div class="field"><label>&nbsp;</label><button type="button" id="rec-gps-btn" class="btn">📍 Ambil GPS</button></div><div class="field"><label>&nbsp;</label><button type="button" id="rec-map-btn" class="btn">🗺️ Pilih di Peta</button></div>`;
+    }
+    if (!fields && !extra) return "";
     return `<div class="form-section"><h3>${escapeHtml(sec.title)}</h3><div class="form-grid">${fields}${extra}</div></div>`;
   }).join("");
   form.innerHTML =
+    (sesi ? sesiBarHtml(sesi, "burung") : "") +
     sectionsHtml +
     `<div class="form-actions">
-      <button type="submit" class="btn btn-primary">Simpan Catatan</button>
+      ${sesi ? '<button type="submit" class="btn btn-primary" data-next="1">Simpan &amp; catat burung berikutnya</button><button type="submit" class="btn">Simpan &amp; selesai</button>' : '<button type="submit" class="btn btn-primary">Simpan Catatan</button>'}
       <button type="button" id="form-cancel-btn" class="btn btn-ghost">Batal</button>
     </div>`;
 
@@ -362,6 +462,15 @@ function buildForm() {
     clearDraft("record", state.editingId);
     setView("list");
   });
+  if (document.getElementById("rec-gps-btn")) {
+    document.getElementById("rec-gps-btn").addEventListener("click", () => gpsInto("f_latitude", "f_longitude", "f_ketinggian_m"));
+    document.getElementById("rec-map-btn").addEventListener("click", () => pickFromMap("f_latitude", "f_longitude", () => {}));
+  }
+  form.querySelectorAll("[data-sesi]").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.sesi === "ubah") buildSesiForm(true);
+    else if (confirm("Akhiri sesi penandaan ini? Catatan yang sudah disimpan tidak berubah.")) { const v = getSesi(); if (v) { v.aktif = false; setSesi(v); } showToast("Sesi diakhiri."); setView("list"); }
+  }));
+  form.querySelectorAll("button[type=submit]").forEach((b) => b.addEventListener("click", () => { state.saveNext = !!b.dataset.next; }));
   // Pakai onsubmit/oninput (bukan addEventListener) karena elemen <form> ini
   // sendiri tidak diganti tiap buildForm() dipanggil -- innerHTML-nya saja
   // yang diganti -- jadi addEventListener akan menumpuk listener lama tiap
@@ -466,8 +575,18 @@ function handlePhotoInput(e) {
 function openForm(id) {
   state.editingId = id;
   state.photoDataUrl = null;
+  state.saveNext = false;
+  const form = document.getElementById("record-form");
+  if (!form.dataset.chips) { wireChips(form); form.dataset.chips = "1"; }
+  // Catatan baru tanpa sesi berjalan: isi info kegiatan sekali dulu.
+  if (!id && !sesiAktif()) {
+    buildSesiForm(false);
+    document.getElementById("form-title").textContent = "Mulai Sesi Penandaan";
+    setView("form");
+    return;
+  }
   buildForm();
-  document.getElementById("form-title").textContent = id ? "Edit Catatan Penandaan" : "Tambah Catatan Penandaan";
+  document.getElementById("form-title").textContent = id ? "Edit Catatan Penandaan" : "Catat Burung";
 
   if (id) {
     getRecord(id).then((rec) => {
@@ -484,14 +603,15 @@ function openForm(id) {
       }
       applyDraftIfAny("record", id, FIELDS);
       document.getElementById("f_nama_spesies")._spShowInfo?.();
+      refreshChips(form);
     });
   } else {
     const today = new Date();
-    document.getElementById("f_tanggal").value = today.toISOString().slice(0, 10);
-    document.getElementById("f_waktu").value = today.toTimeString().slice(0, 5);
-    prefillFromLastRecord();
+    setVal("waktu", today.toTimeString().slice(0, 5));
     applyDraftIfAny("record", id, FIELDS);
+    if (!getVal("nomor_cincin")) { const nx = nextBandNumber(state.records); if (nx) { setVal("nomor_cincin", nx); document.getElementById("f_nomor_cincin").select?.(); } }
     document.getElementById("f_nama_spesies")._spShowInfo?.();
+    refreshChips(form);
   }
   setView("form");
 }
@@ -500,9 +620,11 @@ async function handleFormSubmit(e) {
   e.preventDefault();
   const record = {};
   let missing = [];
+  const sesi = state.formMode === "burung" ? sesiAktif() : null;
   FIELDS.forEach((f) => {
     const el = document.getElementById(`f_${f.key}`);
-    const val = el ? el.value.trim() : "";
+    // Kolom kegiatan yang tidak tampil di form burung diambil dari sesi penandaan.
+    const val = el ? el.value.trim() : sesi && sesi[f.key] !== undefined ? String(sesi[f.key]) : "";
     if (f.required && !val) missing.push(f.label);
     record[f.key] = f.type === "number" ? (val === "" ? "" : Number(val)) : val;
   });
@@ -541,9 +663,10 @@ async function handleFormSubmit(e) {
   }
   clearDraft("record", state.editingId);
   await reload();
-  setView("list");
   maybeAutoBackup();
   maybeCloudPush(savedId);
+  if (state.saveNext && !state.editingId) { openForm(null); showToast(`Tersimpan: ${record.nomor_cincin} ${record.nama_indonesia || record.nama_spesies}. Catat burung berikutnya.`); return; }
+  setView("list");
 }
 
 async function maybeCloudPush(id) {
@@ -649,27 +772,49 @@ function renderLognetList() {
 document.getElementById("lognet-search-box").addEventListener("input", renderLognetList);
 document.getElementById("lognet-add-btn").addEventListener("click", () => openLognetForm(null));
 
+// Kolom Log Banding yang sama dengan info sesi penandaan (diambil otomatis bila sesi berjalan).
+const LOGNET_FROM_SESI = { net_tanggal: "tanggal", net_lokasi: "lokasi_nama", net_cuaca: "cuaca", net_latitude: "latitude", net_longitude: "longitude", net_habitat: "habitat" };
+const NET_SPEC = ["net_panjang", "net_jumlah_kantong", "net_ukuran_mesh", "net_tinggi"];
 function buildLognetForm() {
   const form = document.getElementById("lognet-form");
-  const fields = LOGNET_FIELDS.map(fieldHtml).join("");
-  const gpsExtra = `<div class="field"><label>&nbsp;</label><button type="button" id="lognet-gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
+  const sesi = !state.lognetEditingId ? sesiAktif() : null;
+  state.lognetMode = sesi ? "sesi" : "lengkap";
+  const fields = LOGNET_FIELDS.filter((f) => !(sesi && LOGNET_FROM_SESI[f.key])).map(fieldHtml).join("");
+  const gpsExtra = sesi ? "" : `<div class="field"><label>&nbsp;</label><button type="button" id="lognet-gps-btn" class="btn">📍 Ambil Lokasi GPS Sekarang</button></div>
     <div class="field"><label>&nbsp;</label><button type="button" id="lognet-map-pick-btn" class="btn">🗺️ Pilih di Peta</button></div>
     <div class="field full"><label>Koordinat UTM (otomatis, untuk UTM Geo Map)</label><div id="lognet-utm-preview" class="utm-preview">Isi latitude/longitude untuk melihat koordinat UTM.</div></div>
     <div class="field full"><a id="lognet-gmaps-link" class="btn" href="#" target="_blank" rel="noopener" hidden>🗺️ Buka di Google Maps</a></div>`;
   form.innerHTML =
+    (sesi ? sesiBarHtml(sesi, "net") : "") +
     `<div class="form-section"><div class="form-grid">${fields}${gpsExtra}</div></div>` +
     `<div class="form-actions">
-      <button type="submit" class="btn btn-primary">Simpan Log</button>
+      ${sesi ? '<button type="submit" class="btn btn-primary" data-next="1">Simpan &amp; cek berikutnya</button><button type="submit" class="btn">Simpan &amp; selesai</button>' : '<button type="submit" class="btn btn-primary">Simpan Log</button>'}
       <button type="button" id="lognet-form-cancel-btn" class="btn btn-ghost">Batal</button>
     </div>`;
   document.getElementById("lognet-form-cancel-btn").addEventListener("click", () => {
     clearDraft("lognet", state.lognetEditingId);
     setView("lognet");
   });
-  document.getElementById("lognet-gps-btn").addEventListener("click", fetchLognetGps);
-  document.getElementById("lognet-map-pick-btn").addEventListener("click", () => pickFromMap("f_net_latitude", "f_net_longitude", updateLognetUtmPreview));
-  document.getElementById("f_net_latitude").addEventListener("input", updateLognetUtmPreview);
-  document.getElementById("f_net_longitude").addEventListener("input", updateLognetUtmPreview);
+  if (!sesi) {
+    document.getElementById("lognet-gps-btn").addEventListener("click", fetchLognetGps);
+    document.getElementById("lognet-map-pick-btn").addEventListener("click", () => pickFromMap("f_net_latitude", "f_net_longitude", updateLognetUtmPreview));
+    document.getElementById("f_net_latitude").addEventListener("input", updateLognetUtmPreview);
+    document.getElementById("f_net_longitude").addEventListener("input", updateLognetUtmPreview);
+  }
+  form.querySelectorAll("[data-sesi]").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.sesi === "ubah") { openForm(null); buildSesiForm(true); document.getElementById("form-title").textContent = "Ubah Sesi Penandaan"; }
+    else if (confirm("Akhiri sesi penandaan ini? Catatan yang sudah disimpan tidak berubah.")) { const v = getSesi(); if (v) { v.aktif = false; setSesi(v); } showToast("Sesi diakhiri."); setView("lognet"); }
+  }));
+  form.querySelectorAll("button[type=submit]").forEach((b) => b.addEventListener("click", () => { state.lognetSaveNext = !!b.dataset.next; }));
+  if (!form.dataset.chips) { wireChips(form); form.dataset.chips = "1"; }
+  // Kode net yang pernah dicatat: panjang, kantong, mesh, dan tinggi diisi dari catatan terakhir net itu.
+  const kode = document.getElementById("f_net_kode");
+  kode.addEventListener("change", () => {
+    const prev = [...state.lognetRecords].filter((r) => String(r.net_kode || "").trim().toLowerCase() === kode.value.trim().toLowerCase()).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0];
+    if (!prev) return;
+    let n = 0; NET_SPEC.forEach((k) => { const el = document.getElementById(`f_${k}`); if (el && !el.value && prev[k] !== undefined && prev[k] !== "") { el.value = prev[k]; n++; } });
+    if (n) showToast(`Spesifikasi net ${kode.value} diisi dari catatan sebelumnya.`);
+  });
   // onsubmit/oninput, bukan addEventListener -- lihat catatan yang sama di buildForm().
   form.onsubmit = handleLognetFormSubmit;
   form.oninput = () => scheduleDraftSave("lognet", state.lognetEditingId, LOGNET_FIELDS);
@@ -729,10 +874,15 @@ function openLognetForm(id) {
     });
   } else {
     const today = new Date();
-    document.getElementById("f_net_tanggal").value = today.toISOString().slice(0, 10);
+    if (document.getElementById("f_net_tanggal")) document.getElementById("f_net_tanggal").value = today.toISOString().slice(0, 10);
     document.getElementById("f_net_waktu").value = today.toTimeString().slice(0, 5);
     applyDraftIfAny("lognet", id, LOGNET_FIELDS);
-    updateLognetUtmPreview();
+    const sesi = sesiAktif(), noEl = document.getElementById("f_net_no");
+    if (sesi && noEl && !noEl.value) {
+      const nos = state.lognetRecords.filter((r) => r.net_tanggal === sesi.tanggal && r.net_lokasi === sesi.lokasi_nama).map((r) => parseInt(r.net_no, 10)).filter((x) => !isNaN(x));
+      noEl.value = String((nos.length ? Math.max(...nos) : 0) + 1);
+    }
+    if (document.getElementById("f_net_latitude")) updateLognetUtmPreview();
   }
   setView("lognet-form");
 }
@@ -741,9 +891,11 @@ async function handleLognetFormSubmit(e) {
   e.preventDefault();
   const record = {};
   let missing = [];
+  const sesi = state.lognetMode === "sesi" ? sesiAktif() : null;
   LOGNET_FIELDS.forEach((f) => {
     const el = document.getElementById(`f_${f.key}`);
-    const val = el ? el.value.trim() : "";
+    const sk = LOGNET_FROM_SESI[f.key];
+    const val = el ? el.value.trim() : sesi && sk && sesi[sk] !== undefined ? String(sesi[sk]) : "";
     if (f.required && !val) missing.push(f.label);
     record[f.key] = f.type === "number" ? (val === "" ? "" : Number(val)) : val;
   });
@@ -778,6 +930,7 @@ async function handleLognetFormSubmit(e) {
   }
   clearDraft("lognet", state.lognetEditingId);
   await reloadLognet();
+  if (state.lognetSaveNext && !state.lognetEditingId) { openLognetForm(null); showToast("Tersimpan. Catat cek net berikutnya."); return; }
   setView("lognet");
 }
 
