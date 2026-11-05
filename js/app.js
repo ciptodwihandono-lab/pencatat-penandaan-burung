@@ -33,6 +33,7 @@ function showToast(msg) {
 // di lapangan, baik online maupun offline -- pakai localStorage, tidak
 // butuh koneksi internet sama sekali) ----------
 const DRAFT_PREFIX = "draft_v1_";
+const DRAFT_TTL = 6 * 60 * 60 * 1000; // 6 jam
 
 function draftKey(formName, id) {
   return `${DRAFT_PREFIX}${formName}_${id || "new"}`;
@@ -45,6 +46,7 @@ function saveDraft(formName, id, fields) {
       const el = document.getElementById(`f_${f.key}`);
       if (el) data[f.key] = el.value;
     });
+    data._t = Date.now();
     localStorage.setItem(draftKey(formName, id), JSON.stringify(data));
   } catch (err) {
     // localStorage penuh atau nonaktif -- draft otomatis dilewati, tidak fatal.
@@ -54,7 +56,10 @@ function saveDraft(formName, id, fields) {
 function loadDraft(formName, id) {
   try {
     const raw = localStorage.getItem(draftKey(formName, id));
-    return raw ? JSON.parse(raw) : null;
+    const d = raw ? JSON.parse(raw) : null;
+    // Isian yang ditinggal lebih dari DRAFT_TTL dianggap tidak jadi diisi: kosongkan otomatis.
+    if (d && !(Date.now() - (d._t || 0) < DRAFT_TTL)) { clearDraft(formName, id); return null; }
+    return d;
   } catch (err) {
     return null;
   }
@@ -77,11 +82,27 @@ function clearDraft(formName, id) {
 function applyDraftIfAny(formName, id, fields) {
   const draft = loadDraft(formName, id);
   if (!draft) return;
+  let form = null;
   fields.forEach((f) => {
     const el = document.getElementById(`f_${f.key}`);
-    if (el && draft[f.key] !== undefined) el.value = draft[f.key];
+    if (el && draft[f.key] !== undefined) { el.value = draft[f.key]; form = form || el.closest("form"); }
   });
-  showToast("Draft yang belum tersimpan berhasil dipulihkan.");
+  if (!form) return;
+  // Beri tahu & sediakan tombol untuk membuang isian lama kalau memang tidak jadi diisi.
+  form.querySelector(".draft-note")?.remove();
+  const note = document.createElement("div");
+  note.className = "draft-note";
+  const mnt = Math.round((Date.now() - (draft._t || Date.now())) / 60000);
+  const kapan = mnt < 1 ? "baru saja" : mnt < 60 ? `${mnt} menit lalu` : `${Math.round(mnt / 60)} jam lalu`;
+  note.innerHTML = `<span>↺ Isian yang belum disimpan dipulihkan (${kapan}). Tidak jadi diisi?</span><button type="button" class="btn btn-sm">🧹 Kosongkan</button>`;
+  note.querySelector("button").onclick = () => {
+    clearDraft(formName, id);
+    if (formName === "record") openForm(state.editingId);
+    else if (formName === "lognet") openLognetForm(state.lognetEditingId);
+    else if (formName === "sesi") { buildSesiForm(!!state.sesiFromBurung); }
+    showToast("Isian dikosongkan.");
+  };
+  form.prepend(note);
 }
 
 let draftAutosaveTimer = null;
@@ -98,6 +119,8 @@ function flushDraft() {
   if (pendingDraft) { saveDraft(...pendingDraft); pendingDraft = null; }
 }
 window.addEventListener("pagehide", flushDraft);
+// Setelah refresh mulai dari atas form, supaya pemberitahuan isian yang dipulihkan terlihat.
+try { history.scrollRestoration = "manual"; } catch (err) { /* abaikan */ }
 window.addEventListener("beforeunload", flushDraft);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushDraft(); });
 
@@ -439,6 +462,7 @@ function utmPreview(lat, lon, el) { const u = latLonToUtm(lat, lon); el.textCont
 /* Form sesi: diisi sekali di awal kegiatan. */
 function buildSesiForm(fromBurung) {
   state.formMode = "sesi";
+  state.sesiFromBurung = fromBurung;
   const form = document.getElementById("record-form");
   const gpsFields = GPS_KEYS.map((k) => FIELDS.find((f) => f.key === k));
   form.innerHTML = `<div class="autofill-note">Isi <b>sekali</b> di awal kegiatan. Data ini otomatis dipakai untuk setiap burung yang dicatat dan untuk Log Banding, jadi tidak perlu diisi berulang.</div>
@@ -447,7 +471,7 @@ function buildSesiForm(fromBurung) {
       <div class="field"><label>&nbsp;</label><button type="button" id="sesi-gps-btn" class="btn">📍 Ambil GPS sekarang</button></div>
       <div class="field"><label>&nbsp;</label><button type="button" id="sesi-map-btn" class="btn">🗺️ Pilih di Peta</button></div>
       <div class="field full"><div id="sesi-utm" class="utm-preview"></div></div></div></div>
-    <div class="form-actions"><button type="submit" class="btn btn-primary">${fromBurung ? "Simpan sesi" : "Mulai sesi &amp; catat burung"}</button><button type="button" id="form-cancel-btn" class="btn btn-ghost">Batal</button></div>`;
+    <div class="form-actions"><button type="submit" class="btn btn-primary">${fromBurung ? "Simpan sesi" : "Mulai sesi &amp; catat burung"}</button><button type="button" id="form-cancel-btn" class="btn btn-ghost">✕ Batal &amp; kosongkan</button></div>`;
   const prev = getSesi() || {};
   const last = [...state.records].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0] || {};
   [...sesiFieldDefs(), ...gpsFields].forEach((f) => { const v = prev[f.key] ?? last[f.key]; if (v !== undefined && v !== "") setVal(f.key, v); });
@@ -501,7 +525,7 @@ function buildForm() {
     sectionsHtml +
     `<div class="form-actions">
       ${sesi ? '<button type="submit" class="btn btn-primary" data-next="1">Simpan &amp; catat burung berikutnya</button><button type="submit" class="btn">Simpan &amp; selesai</button>' : '<button type="submit" class="btn btn-primary">Simpan Catatan</button>'}
-      <button type="button" id="form-cancel-btn" class="btn btn-ghost">Batal</button>
+      <button type="button" id="form-cancel-btn" class="btn btn-ghost">✕ Batal &amp; kosongkan</button>
     </div>`;
 
   ["f_foto_kamera", "f_foto_galeri"].forEach((id) => document.getElementById(id).addEventListener("change", handlePhotoInput));
@@ -850,7 +874,7 @@ function buildLognetForm() {
     `<div class="form-section"><div class="form-grid">${fields}${gpsExtra}</div></div>` +
     `<div class="form-actions">
       ${sesi ? '<button type="submit" class="btn btn-primary" data-next="1">Simpan &amp; cek berikutnya</button><button type="submit" class="btn">Simpan &amp; selesai</button>' : '<button type="submit" class="btn btn-primary">Simpan Log</button>'}
-      <button type="button" id="lognet-form-cancel-btn" class="btn btn-ghost">Batal</button>
+      <button type="button" id="lognet-form-cancel-btn" class="btn btn-ghost">✕ Batal &amp; kosongkan</button>
     </div>`;
   document.getElementById("lognet-form-cancel-btn").addEventListener("click", () => {
     clearDraft("lognet", state.lognetEditingId);
