@@ -1001,11 +1001,13 @@ document.getElementById("lognet-import-btn").addEventListener("click", async () 
     const out = { ...r };
     LOGNET_FIELDS.forEach((f) => {
       if (f.type === "number" && out[f.key] !== "" && out[f.key] !== undefined) {
-        out[f.key] = Number(out[f.key]);
+        out[f.key] = Number(String(out[f.key]).replace(",", "."));
       }
     });
+    if (!out.created_at) out.created_at = new Date().toISOString();
+    if (!out.updated_at) out.updated_at = out.created_at;
     return out;
-  });
+  }).filter((r) => LOGNET_FIELDS.some((f) => r[f.key] !== "" && r[f.key] !== undefined && !Number.isNaN(r[f.key])));
   await bulkAddLognet(cleaned);
   status.textContent = `${cleaned.length} log berhasil diimpor.`;
   await reloadLognet();
