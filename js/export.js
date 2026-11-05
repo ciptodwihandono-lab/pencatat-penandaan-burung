@@ -156,7 +156,7 @@ export function downloadCsv(records, filename, columns = CSV_COLUMNS) {
 }
 
 // Parser CSV sederhana yang mendukung tanda kutip dan koma di dalam field.
-function parseCsvLine(line) {
+function parseCsvLine(line, delim = ",") {
   const result = [];
   let cur = "";
   let inQuotes = false;
@@ -176,7 +176,7 @@ function parseCsvLine(line) {
     } else {
       if (ch === '"') {
         inQuotes = true;
-      } else if (ch === ",") {
+      } else if (ch === delim) {
         result.push(cur);
         cur = "";
       } else {
@@ -192,10 +192,13 @@ export function csvToRecords(csvText) {
   const text = csvText.replace(/^﻿/, "").trim();
   const lines = text.split(/\r\n|\n|\r/).filter((l) => l.length > 0);
   if (lines.length === 0) return [];
-  const header = parseCsvLine(lines[0]);
+  // Excel berbahasa Indonesia menyimpan CSV dengan pemisah ";" -- deteksi dari baris judul.
+  const delim = !lines[0].includes(",") && lines[0].includes(";") ? ";" : ",";
+  const header = parseCsvLine(lines[0], delim).map((h) => h.trim());
   const records = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = parseCsvLine(lines[i]);
+    const cols = parseCsvLine(lines[i], delim);
+    if (cols.every((c) => c.trim() === "")) continue; // baris kosong dari template Excel
     const rec = {};
     header.forEach((h, idx) => {
       rec[h] = cols[idx] !== undefined ? cols[idx] : "";
