@@ -65,6 +65,8 @@ function clearDraft(formName, id) {
   // baru dihapus tidak "hidup lagi" kalau user langsung Simpan/Batal tak lama
   // setelah ketikan terakhir.
   clearTimeout(draftAutosaveTimer);
+  pendingDraft = null;
+  if (formName === "record") saveSetting(FOTO_DRAFT(id), null).catch(() => {});
   try {
     localStorage.removeItem(draftKey(formName, id));
   } catch (err) {
@@ -83,9 +85,49 @@ function applyDraftIfAny(formName, id, fields) {
 }
 
 let draftAutosaveTimer = null;
+let pendingDraft = null;
 function scheduleDraftSave(formName, id, fields) {
   clearTimeout(draftAutosaveTimer);
-  draftAutosaveTimer = setTimeout(() => saveDraft(formName, id, fields), 400);
+  pendingDraft = [formName, id, fields];
+  draftAutosaveTimer = setTimeout(flushDraft, 400);
+}
+// Simpan draft seketika saat halaman ditutup/di-refresh/pindah aplikasi, supaya
+// ketikan terakhir (sebelum jeda autosave) tidak hilang.
+function flushDraft() {
+  clearTimeout(draftAutosaveTimer);
+  if (pendingDraft) { saveDraft(...pendingDraft); pendingDraft = null; }
+}
+window.addEventListener("pagehide", flushDraft);
+window.addEventListener("beforeunload", flushDraft);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushDraft(); });
+
+// Minta browser menyimpan data secara permanen (tidak dihapus otomatis saat memori penuh / lama tidak dibuka).
+try { navigator.storage?.persist?.().catch(() => {}); } catch (err) { /* tidak didukung */ }
+
+// ---------- Foto lampiran: kamera atau galeri, dikecilkan, dan ikut draft ----------
+const FOTO_DRAFT = (id) => `draft_foto_record_${id || "new"}`;
+function compressImage(file, max = 1600, q = 0.8) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Foto tidak bisa dibaca")); };
+    img.src = url;
+  });
+}
+function showPhoto(dataUrl) {
+  const img = document.getElementById("photo-preview");
+  const del = document.getElementById("foto-hapus-btn");
+  if (!img) return;
+  img.hidden = !dataUrl; if (dataUrl) img.src = dataUrl; else img.removeAttribute("src");
+  if (del) del.hidden = !dataUrl;
 }
 
 function setView(view) {
@@ -416,17 +458,19 @@ function buildSesiForm(fromBurung) {
   document.getElementById("sesi-gps-btn").addEventListener("click", () => gpsInto("f_latitude", "f_longitude", "f_ketinggian_m", up));
   document.getElementById("sesi-map-btn").addEventListener("click", () => pickFromMap("f_latitude", "f_longitude", up));
   ["f_latitude", "f_longitude"].forEach((id) => document.getElementById(id).addEventListener("input", up));
-  up(); if (!getVal("latitude") && !fromBurung) gpsInto("f_latitude", "f_longitude", "f_ketinggian_m", up);
-  document.getElementById("form-cancel-btn").addEventListener("click", () => setView(fromBurung ? "form" : "list") || (fromBurung && openForm(null)));
+  const sesiDefs = [...sesiFieldDefs(), ...gpsFields];
+  applyDraftIfAny("sesi", null, sesiDefs);
+  up(); if (!getVal("latitude") && !fromBurung) gpsInto("f_latitude", "f_longitude", "f_ketinggian_m", () => { up(); scheduleDraftSave("sesi", null, sesiDefs); });
+  document.getElementById("form-cancel-btn").addEventListener("click", () => { clearDraft("sesi", null); setView(fromBurung ? "form" : "list") || (fromBurung && openForm(null)); });
   refreshChips(form);
-  form.oninput = null;
+  form.oninput = () => scheduleDraftSave("sesi", null, sesiDefs);
   form.onsubmit = (e) => {
     e.preventDefault();
     const v = { aktif: true, mulai: (fromBurung && prev.mulai) || Date.now() };
     const missing = [];
     [...sesiFieldDefs(), ...gpsFields].forEach((f) => { const val = getVal(f.key); if (f.required && !val) missing.push(f.label); v[f.key] = f.type === "number" ? (val === "" ? "" : Number(val)) : val; });
     if (missing.length) { showToast("Lengkapi dulu: " + missing.join(", ")); return; }
-    setSesi(v); showToast(fromBurung ? "Sesi diperbarui." : "Sesi dimulai. Catat burung pertama."); openForm(null);
+    clearDraft("sesi", null); setSesi(v); showToast(fromBurung ? "Sesi diperbarui." : "Sesi dimulai. Catat burung pertama."); openForm(null);
   };
 }
 
@@ -441,7 +485,10 @@ function buildForm() {
     const fields = FIELDS.filter((f) => f.section === sec.key && !skip.has(f.key)).map(fieldHtml).join("");
     let extra = "";
     if (sec.key === "tambahan") {
-      extra = `<div class="field full"><label>Lampirkan Foto (opsional, tambahan digital selain kolom "Photo")</label><input type="file" id="f_foto" accept="image/*" capture="environment" /><img id="photo-preview" class="photo-preview" hidden /></div>`;
+      extra = `<div class="field full"><label>Lampirkan Foto (opsional, tambahan digital selain kolom "Photo")</label>
+        <div class="foto-acts"><label class="btn" for="f_foto_kamera">📷 Ambil Foto</label><label class="btn" for="f_foto_galeri">🖼️ Pilih dari Galeri</label><button type="button" id="foto-hapus-btn" class="btn btn-ghost" hidden>✕ Hapus foto</button></div>
+        <input type="file" id="f_foto_kamera" accept="image/*" capture="environment" hidden /><input type="file" id="f_foto_galeri" accept="image/*" hidden />
+        <img id="photo-preview" class="photo-preview" hidden /></div>`;
     }
     if (sec.key === "gps" && !sesi) {
       extra = `<div class="field"><label>&nbsp;</label><button type="button" id="rec-gps-btn" class="btn">📍 Ambil GPS</button></div><div class="field"><label>&nbsp;</label><button type="button" id="rec-map-btn" class="btn">🗺️ Pilih di Peta</button></div>`;
@@ -457,7 +504,11 @@ function buildForm() {
       <button type="button" id="form-cancel-btn" class="btn btn-ghost">Batal</button>
     </div>`;
 
-  document.getElementById("f_foto").addEventListener("change", handlePhotoInput);
+  ["f_foto_kamera", "f_foto_galeri"].forEach((id) => document.getElementById(id).addEventListener("change", handlePhotoInput));
+  document.getElementById("foto-hapus-btn").addEventListener("click", () => {
+    state.photoDataUrl = null; state.photoRemoved = true; showPhoto(null);
+    saveSetting(FOTO_DRAFT(state.editingId), "").catch(() => {});
+  });
   document.getElementById("form-cancel-btn").addEventListener("click", () => {
     clearDraft("record", state.editingId);
     setView("list");
@@ -559,22 +610,31 @@ async function pickFromMap(latFieldId, lonFieldId, onFilled) {
   showToast("Koordinat dipilih dari peta.");
 }
 
-function handlePhotoInput(e) {
+async function handlePhotoInput(e) {
   const file = e.target.files[0];
+  e.target.value = "";
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    state.photoDataUrl = reader.result;
-    const img = document.getElementById("photo-preview");
-    img.src = state.photoDataUrl;
-    img.hidden = false;
-  };
-  reader.readAsDataURL(file);
+  let data;
+  try { data = await compressImage(file); } catch (err) {
+    data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+  }
+  state.photoDataUrl = data; state.photoRemoved = false;
+  showPhoto(data);
+  // Simpan ke draft (IndexedDB) supaya foto tidak hilang kalau halaman di-refresh sebelum disimpan.
+  saveSetting(FOTO_DRAFT(state.editingId), data).catch(() => {});
+}
+async function restorePhotoDraft(id) {
+  try {
+    const d = await getSetting(FOTO_DRAFT(id));
+    if (d === "") { state.photoDataUrl = null; state.photoRemoved = true; showPhoto(null); }
+    else if (d) { state.photoDataUrl = d; state.photoRemoved = false; showPhoto(d); }
+  } catch (err) { /* abaikan */ }
 }
 
 function openForm(id) {
   state.editingId = id;
   state.photoDataUrl = null;
+  state.photoRemoved = false;
   state.saveNext = false;
   const form = document.getElementById("record-form");
   if (!form.dataset.chips) { wireChips(form); form.dataset.chips = "1"; }
@@ -597,11 +657,10 @@ function openForm(id) {
       });
       if (rec.foto) {
         state.photoDataUrl = rec.foto;
-        const img = document.getElementById("photo-preview");
-        img.src = rec.foto;
-        img.hidden = false;
+        showPhoto(rec.foto);
       }
       applyDraftIfAny("record", id, FIELDS);
+      restorePhotoDraft(id);
       document.getElementById("f_nama_spesies")._spShowInfo?.();
       refreshChips(form);
     });
@@ -609,6 +668,7 @@ function openForm(id) {
     const today = new Date();
     setVal("waktu", today.toTimeString().slice(0, 5));
     applyDraftIfAny("record", id, FIELDS);
+    restorePhotoDraft(id);
     if (!getVal("nomor_cincin")) { const nx = nextBandNumber(state.records); if (nx) { setVal("nomor_cincin", nx); document.getElementById("f_nomor_cincin").select?.(); } }
     document.getElementById("f_nama_spesies")._spShowInfo?.();
     refreshChips(form);
@@ -639,6 +699,7 @@ async function handleFormSubmit(e) {
   record.utm_northing = utm ? utm.northing : "";
 
   if (state.photoDataUrl) record.foto = state.photoDataUrl;
+  else if (state.photoRemoved) record.foto = "";
   const now = new Date().toISOString();
   record.updated_at = now;
 
